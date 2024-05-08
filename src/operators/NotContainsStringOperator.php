@@ -27,9 +27,36 @@ class NotContainsStringOperator extends OperatorAbstract
         return 'Not contains';
     }
 
-    public static function phpCondition($searchValue, string $column, $value): bool
+    /**
+     * Checks if a substring not exists within a string without considering case sensitivity.
+     *
+     * @param mixed $searchValue The substring to search for.
+     * @param string $column The column name (unused in this function).
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
+     * @return bool Returns true if the substring is found within the string, false otherwise.
+     */
+    public static function phpCondition($searchValue, string $column, array $data): bool
     {
-        return true;
+        // Get value from array
+        $value = self::getValue($column, $data);
+
+        // Check if both $searchValue and $value are scalar values
+        if (!is_scalar($searchValue) || !is_scalar($value)) {
+            return false;
+        }
+
+        // Convert $searchValue and $value to strings
+        $searchValue = strval($searchValue);
+        $value = strval($value);
+
+        // Escape special characters in $searchValue
+        $escapedSearchValue = preg_quote($searchValue, '/');
+
+        // Create a regular expression for searching $searchValue within $value without considering case sensitivity
+        $regex = "/{$escapedSearchValue}/i";
+
+        // Check if $searchValue is not found within $value using the regular expression without considering case sensitivity
+        return preg_match($regex, $value) !== 1;
     }
 
     public static function mongodbCondition($searchValue, $column) : array

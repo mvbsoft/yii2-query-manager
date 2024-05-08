@@ -27,9 +27,34 @@ class EndWithStringOperator extends OperatorAbstract
         return 'End with';
     }
 
-    public static function phpCondition($searchValue, string $column, $value): bool
+    /**
+     * Checks if a string ends with a specified substring, ignoring case sensitivity.
+     *
+     * @param mixed $searchValue The substring to search for.
+     * @param string $column The column name (unused in this function).
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
+     * @return bool Returns true if the string ends with the specified substring, false otherwise.
+     */
+    public static function phpCondition($searchValue, string $column, array $data): bool
     {
-        return true;
+        // Get value from array
+        $value = self::getValue($column, $data);
+
+        // Check if both $searchValue and $value are scalar values
+        if (!is_scalar($searchValue) || !is_scalar($value)) {
+            return false;
+        }
+
+        // Convert $searchValue and $value to strings
+        $searchValue = strval($searchValue);
+        $value = strval($value);
+
+        // Escape special characters
+        $escapedSearchValue = preg_quote($searchValue, '/');
+        $escapedValue = preg_quote($value, '/');
+
+        // Check if $value ends with $searchValue using the regular expression pattern
+        return preg_match("/{$escapedSearchValue}$/i", $escapedValue) === 1;
     }
 
     public static function mongodbCondition($searchValue, $column) : array

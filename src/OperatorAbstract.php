@@ -113,10 +113,10 @@ abstract class OperatorAbstract extends BaseObject
      *
      * @param mixed $searchValue The value to search in a PHP array.
      * @param string $column The column name (the value key in the PHP array of data).
-     * @param mixed $value The field value to compare `$searchValue` with.
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if `$searchValue` strictly equals `$value`, otherwise false.
      */
-    abstract public static function phpCondition($searchValue, string $column, $value) : bool;
+    abstract public static function phpCondition($searchValue, string $column, array $data) : bool;
 
     /**
      * Compares the `$searchValue` with `$fieldValue` using strict equality check in MongoDB.
@@ -137,18 +137,31 @@ abstract class OperatorAbstract extends BaseObject
     abstract public static function postgresqlCondition($searchValue, string $column) : array;
 
     /**
-     * Escape special characters in a string.
+     * Retrieves a value from a PHP array using the specified column name, simulating a database query.
      *
-     * @param string $value The string to escape special characters from.
-     * @return string The string with special characters escaped.
+     * @param string $column The column name to retrieve the value from.
+     * @param array $data The PHP array containing the data.
+     * @return mixed|null The value from the PHP array corresponding to the column name, or null if not found.
      */
-    public static function escapeSpecialChars(string $value): string
+    public static function getValue(string $column, array $data){
+        return $data[$column] ?? null;
+    }
+
+    public static function convertToTimestamp($date): ?int
     {
-        $specialChars = ['[', '\\', '^', '$', '.', '|', '?', '*', '+', '(', ')'];
+        if(is_numeric($date)){
+            $date = intval($date);
+        }
 
-        $escapedChars = ['\[', '\\\\', '\^', '\$', '\.', '\|', '\?', '\*', '\+', '\(', '\)'];
+        if(is_string($date)){
+            $date = strtotime($date);
+        }
 
-        return strtr($value, array_combine($specialChars, $escapedChars));
+        if(!is_integer($date)){
+            $date = null;
+        }
+
+        return $date;
     }
 
 }

@@ -6,6 +6,7 @@ use Exception;
 use Yii;
 use yii\base\Component;
 use yii\base\DynamicModel;
+use yii\db\Connection;
 use yii\mongodb\Query as MongodbQuery;
 use yii\db\Query as PostgresqlQuery;
 
@@ -147,8 +148,6 @@ class QueryBuilder extends Component {
         }));
     }
 
-    // Methods for creating dynamic models for query elements
-
     /**
      * Creates a dynamic model for a group condition.
      *
@@ -256,10 +255,10 @@ class QueryBuilder extends Component {
      *
      * @param array $queryElements The array of query elements.
      * @param string $conditionType The condition type (php, mongodb, postgresql).
-     * @param array $arrayData The array data.
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return PostgresqlQuery|MongodbQuery The generated query.
      */
-    public function generateCondition(array $queryElements, string $conditionType, array $arrayData = [])
+    public function generateCondition(array $queryElements, string $conditionType, array $data = [])
     {
         // Initialize query object based on condition type
         if($conditionType == self::CONDITION_TYPE_MONGODB){
@@ -280,7 +279,7 @@ class QueryBuilder extends Component {
                 $operator    = $element['operator'];
                 $searchValue = $element['value'];
 
-                $where = $this->generateWhere($operator, $conditionType, $searchValue, $column, $arrayData[$column] ?? null);
+                $where = $this->generateWhere($operator, $conditionType, $searchValue, $column, $data);
 
                 if($condition == self::CONDITION_OR && !is_null($where)){
                     $query->orWhere($where);
@@ -295,7 +294,7 @@ class QueryBuilder extends Component {
             if($type == self::CONDITION_ELEMENT_TYPE_GROUP){
                 $groupElements = $element['elements'];
 
-                $groupQuery = $this->generateCondition($groupElements, $conditionType, $arrayData);
+                $groupQuery = $this->generateCondition($groupElements, $conditionType, $data);
 
                 if($condition == self::CONDITION_OR && !empty($groupQuery->where)){
                     $query->orWhere($groupQuery->where);
@@ -314,16 +313,16 @@ class QueryBuilder extends Component {
      * Executes a PHP query based on the provided query elements and array data.
      *
      * @param array $queryElements The array of query elements.
-     * @param array $arrayData The array data.
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool The result of the PHP query execution.
      */
-    public function phpQuery(array $queryElements, array $arrayData): bool
+    public function phpQuery(array $queryElements, array $data): bool
     {
         // Create a query builder instance
-        $queryBuilder = new \yii\db\QueryBuilder(Yii::$app->db);
+        $queryBuilder = new \yii\db\QueryBuilder(new Connection());
 
         // Generate the condition for the query
-        $query = $this->generateCondition($queryElements,  self::CONDITION_TYPE_PHP,  $arrayData);
+        $query = $this->generateCondition($queryElements,  self::CONDITION_TYPE_PHP,  $data);
 
         // Initialize parameters array
         $params = [];
@@ -374,10 +373,10 @@ class QueryBuilder extends Component {
      * @param string $conditionType The condition type (php, mongodb, postgresql).
      * @param mixed $searchValue The value to search for.
      * @param string $column The column where the search is performed.
-     * @param mixed|null $value The data for the current column from the PHP array.
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return int|array|null The generated condition.
      */
-    public function generateWhere(string $operatorSlug, string $conditionType, $searchValue, string $column, $value = null) {
+    public function generateWhere(string $operatorSlug, string $conditionType, $searchValue, string $column, array $data = []) {
         // Get the operator object by slug
         $operator = $this->getOperatorBySlug($operatorSlug);
 
@@ -388,7 +387,7 @@ class QueryBuilder extends Component {
 
         // Generate condition based on condition type
         if($conditionType == self::CONDITION_TYPE_PHP){
-            return intval($operator::phpCondition($searchValue, $column, $value));
+            return intval($operator::phpCondition($searchValue, $column, $data));
         }
 
         if($conditionType == self::CONDITION_TYPE_MONGODB){

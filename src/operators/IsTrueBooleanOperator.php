@@ -27,9 +27,26 @@ class IsTrueBooleanOperator extends OperatorAbstract
         return 'Is true';
     }
 
-    public static function phpCondition($searchValue, string $column, $value): bool
+    /**
+     * Checks if the given value is a scalar and evaluates to true.
+     *
+     * @param mixed $searchValue Not used in this function.
+     * @param string $column The column name (unused in this function).
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
+     * @return bool Returns true if the value is a scalar and evaluates to true, otherwise returns false.
+     */
+    public static function phpCondition($searchValue, string $column, array $data): bool
     {
-        return true;
+        // Get value from array
+        $value = self::getValue($column, $data);
+
+        // Check if $value is a scalar
+        if(!is_scalar($value)){
+            return false; // If not, return false
+        }
+
+        // Convert $value to boolean and check if it is true
+        return boolval($value) === true;
     }
 
     public static function mongodbCondition($searchValue, $column) : array
