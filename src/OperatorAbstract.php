@@ -112,29 +112,29 @@ abstract class OperatorAbstract extends BaseObject
      * Compares the `$searchValue` with `$fieldValue` using strict equality check in PHP.
      *
      * @param mixed $searchValue The value to search in a PHP array.
-     * @param string $column The column name (the value key in the PHP array of data).
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
+     * @param string $column The column name (the value key in the PHP array of data).
      * @return bool Returns true if `$searchValue` strictly equals `$value`, otherwise false.
      */
-    abstract public static function phpCondition($searchValue, string $column, array $data) : bool;
+    abstract public static function phpCondition(string $column, $searchValue, array $data) : bool;
 
     /**
      * Compares the `$searchValue` with `$fieldValue` using strict equality check in MongoDB.
      *
-     * @param mixed $searchValue The value to search in MongoDB.
      * @param string $column The column name (e.g., column name in the database).
+     * @param mixed $searchValue The value to search in MongoDB.
      * @return array Returns an array of where condition for using in Yii2 Query Builder.
      */
-    abstract public static function mongodbCondition($searchValue, string $column) : array;
+    abstract public static function mongodbCondition(string $column, $searchValue) : array;
 
     /**
      * Compares the `$searchValue` with `$fieldValue` using strict equality check in PostgreSQL.
      *
-     * @param mixed $searchValue The value to search in PostgreSQL.
      * @param string $column The column name (e.g., column name in the database).
+     * @param mixed $searchValue The value to search in PostgreSQL.
      * @return array Returns an array of where condition for using in Yii2 Query Builder.
      */
-    abstract public static function postgresqlCondition($searchValue, string $column) : array;
+    abstract public static function postgresqlCondition(string $column, $searchValue) : array;
 
     /**
      * Retrieves a value from a PHP array using the specified column name, simulating a database query.

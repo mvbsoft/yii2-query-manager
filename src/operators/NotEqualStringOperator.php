@@ -30,12 +30,12 @@ class NotEqualStringOperator extends OperatorAbstract
     /**
      * Checks if the given scalar values are not equal after converting them to strings.
      *
-     * @param mixed $searchValue The search value to be compared against.
      * @param string $column The column name (unused in this function).
+     * @param mixed $searchValue The search value to be compared against.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the scalar values are not equal after converting them to strings, otherwise returns false.
      */
-    public static function phpCondition($searchValue, string $column, array $data): bool
+    public static function phpCondition(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -49,14 +49,27 @@ class NotEqualStringOperator extends OperatorAbstract
         return strval($searchValue) !== strval($value);
     }
 
-    public static function mongodbCondition($searchValue, $column) : array
+    public static function mongodbCondition($column, $searchValue) : array
     {
         return [];
     }
 
-    public static function postgresqlCondition($searchValue, $column) : array
+    /**
+     * Generate a condition array for the query builder to match a scalar value in Postgres.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The scalar value to search for (string, number, or boolean).
+     * @return array The condition array for the query.
+     */
+    public static function postgresqlCondition(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is a scalar value (string, number, or boolean)
+        if (!is_scalar($searchValue)) {
+            return [];
+        }
+
+        // Construct the condition for matching the scalar value in the column
+        return ["!=", $column, strval($searchValue)];
     }
 
 }

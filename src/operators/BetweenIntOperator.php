@@ -30,47 +30,73 @@ class BetweenIntOperator extends OperatorAbstract
     /**
      * Checks if a given integer falls within a specified range.
      *
-     * @param mixed $searchValue An array containing two elements representing the start and end of the range.
      * @param string $column The column name (unused in this function).
+     * @param mixed $searchValue An array containing two elements representing the start and end of the range.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the integer falls within the specified range, false otherwise.
      */
-    public static function phpCondition($searchValue, string $column, array $data): bool
+    public static function phpCondition(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
 
-        // Перевіряємо, чи $searchValue є масивом і має рівно два елементи
-        if(!is_array($searchValue) || count($searchValue) !== 2){
-            return false; // Якщо ні, повертаємо false
+        // Check if $searchValue is an array and has exactly two elements
+        if (!is_array($searchValue) || count($searchValue) !== 2) {
+            return false; // If not, return false
         }
 
-        // Отримуємо значення початку та кінця діапазону
-        $fromInt = $searchValue[0];
-        $toInt = $searchValue[1];
+        // Get the start and end values of the range
+        $from = $searchValue[0];
+        $to = $searchValue[1];
 
-        // Перевіряємо, чи всі значення є числами
-        if(!is_numeric($fromInt) || !is_numeric($toInt) || !is_numeric($value)){
-            return false; // Якщо ні, повертаємо false
+        // Check if all values are numeric
+        if (!is_numeric($from) || !is_numeric($to) || !is_numeric($value)) {
+            return false;
         }
 
-        // Перетворюємо значення на цілі числа
-        $fromInt = intval($fromInt);
-        $toInt = intval($toInt);
+        // Convert values to integers
+        $fromInt = intval($from);
+        $toInt = intval($to);
         $value = intval($value);
 
-        // Перевіряємо, чи $value знаходиться між $fromInt і $toInt
+        // Check if $value is between $fromInt and $toInt
         return $value >= $fromInt && $value <= $toInt;
     }
 
-    public static function mongodbCondition($searchValue, $column) : array
+    public static function mongodbCondition(string $column, $searchValue) : array
     {
         return [];
     }
 
-    public static function postgresqlCondition($searchValue, $column) : array
+    /**
+     * Constructs a condition for PostgreSQL database query to find records with a value шn the specified column between two integers.
+     *
+     * @param string $column The column name (unused in this function).
+     * @param mixed $searchValue An array containing two elements representing the start and end of the range.
+     * @return array The condition array for the query.
+     */
+    public static function postgresqlCondition(string $column, $searchValue) : array
     {
-        return [];
+        // Check if $searchValue is an array and has exactly two elements
+        if (!is_array($searchValue) || count($searchValue) !== 2) {
+            return []; // If not, return false
+        }
+
+        // Get the start and end values of the range
+        $from = $searchValue[0];
+        $to = $searchValue[1];
+
+        // Check if all values are numeric
+        if (!is_numeric($from) || !is_numeric($to) ) {
+            return [];
+        }
+
+        // Convert values to integers
+        $fromInt = intval($from);
+        $toInt = intval($to);
+
+        // Construct the condition for between two timestamps
+        return ['between', $column, $fromInt, $toInt];
     }
 
 }

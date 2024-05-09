@@ -4,6 +4,7 @@ namespace mvbsoft\queryManager\operators;
 
 use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
+use yii\db\Expression;
 
 class CurrentDateOperator extends OperatorAbstract
 {
@@ -31,12 +32,12 @@ class CurrentDateOperator extends OperatorAbstract
     /**
      * Checks if the given value represents today's date.
      *
-     * @param mixed $searchValue Not used in this function.
      * @param string $column The column name (unused in this function).
+     * @param mixed $searchValue Not used in this function.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the value represents today's date, otherwise returns false.
      */
-    public static function phpCondition($searchValue, string $column, array $data): bool
+    public static function phpCondition(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -58,14 +59,22 @@ class CurrentDateOperator extends OperatorAbstract
         return Carbon::createFromTimestamp($value)->isToday();
     }
 
-    public static function mongodbCondition($searchValue, $column) : array
+    public static function mongodbCondition($column, $searchValue) : array
     {
         return [];
     }
 
-    public static function postgresqlCondition($searchValue, $column) : array
+    /**
+     * Generate a condition array for the query builder to match the current date.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue Optional search value (not used in this function).
+     * @return array The condition array for the query.
+     */
+    public static function postgresqlCondition(string $column, $searchValue = null): array
     {
-        return [];
+        // Return an expression to match the current date for the specified column
+        return [new Expression("$column::date = CURRENT_DATE")];
     }
 
 }

@@ -30,12 +30,12 @@ class InRangeStringOperator extends OperatorAbstract
     /**
      * Checks if a given value matches any of the string values in the provided array.
      *
-     * @param mixed $searchValue An array containing string values to search for.
      * @param string $column The column name (unused in this function).
+     * @param mixed $searchValue An array containing string values to search for.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the value matches any of the string values in the array, otherwise returns false.
      */
-    public static function phpCondition($searchValue, string $column, array $data): bool
+    public static function phpCondition(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -72,14 +72,45 @@ class InRangeStringOperator extends OperatorAbstract
         return false; // If no match found, return false
     }
 
-    public static function mongodbCondition($searchValue, $column) : array
+    public static function mongodbCondition($column, $searchValue) : array
     {
         return [];
     }
 
-    public static function postgresqlCondition($searchValue, $column) : array
+    /**
+     * Generate a condition array for the query builder to match an array of string values in Postgres.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The array of values to search for.
+     * @return array The condition array for the query.
+     */
+    public static function postgresqlCondition(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is an array
+        if (!is_array($searchValue)) {
+            return [];
+        }
+
+        $searchValueStrings = [];
+
+        // Iterate through each item in $searchValue
+        foreach ($searchValue as $item) {
+            // Skip non-scalar items
+            if (!is_scalar($item)) {
+                continue; // Move to the next iteration
+            }
+
+            // Convert the item to a string
+            $searchValueStrings[] = strval($item);
+        }
+
+        // If there are no valid scalar values in the array, return an empty array
+        if (empty($searchValueStrings)) {
+            return [];
+        }
+
+        // Construct the condition for matching the array of string values in the column
+        return [$column => $searchValueStrings];
     }
 
 }

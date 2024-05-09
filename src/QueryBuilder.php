@@ -387,15 +387,15 @@ class QueryBuilder extends Component {
 
         // Generate condition based on condition type
         if($conditionType == self::CONDITION_TYPE_PHP){
-            return intval($operator::phpCondition($searchValue, $column, $data));
+            return intval($operator::phpCondition($column,$searchValue,  $data));
         }
 
         if($conditionType == self::CONDITION_TYPE_MONGODB){
-            return $operator::mongodbCondition($searchValue, $column);
+            return $operator::mongodbCondition($column, $searchValue);
         }
 
         if($conditionType == self::CONDITION_TYPE_POSTGRESQL){
-            return $operator::postgresqlCondition($searchValue, $column);
+            return $operator::postgresqlCondition($column, $searchValue);
         }
 
         return null;

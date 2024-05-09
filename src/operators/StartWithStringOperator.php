@@ -35,7 +35,7 @@ class StartWithStringOperator extends OperatorAbstract
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the string starts with the specified substring, false otherwise.
      */
-    public static function phpCondition($searchValue, string $column, array $data): bool
+    public static function phpCondition(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -57,14 +57,30 @@ class StartWithStringOperator extends OperatorAbstract
         return preg_match("/^{$escapedSearchValue}/i", $escapedValue) === 1;
     }
 
-    public static function mongodbCondition($searchValue, $column) : array
+    public static function mongodbCondition($column, $searchValue) : array
     {
         return [];
     }
 
-    public static function postgresqlCondition($searchValue, $column) : array
+    /**
+     * Generate a condition array for the query builder to perform a case-insensitive pattern match.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The value to search for.
+     * @return array The condition array for the query.
+     */
+    public static function postgresqlCondition(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is a scalar value
+        if (!is_scalar($searchValue)) {
+            return [];
+        }
+
+        // Convert $searchValue to a string
+        $searchValue = strval($searchValue);
+
+        // Construct the condition for case-insensitive pattern match using ILIKE
+        return ['ILIKE', $column, "$searchValue%", false];
     }
 
 }
