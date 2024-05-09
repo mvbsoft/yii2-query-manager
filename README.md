@@ -107,6 +107,30 @@ $conditions = [
         "operator" => BetweenIntOperator::slug(),
         "value" => ["1", "3"]
     ],
+    [
+        "id" => 2,
+        "condition" => "AND",
+        "type" => QueryBuilder::CONDITION_ELEMENT_TYPE_GROUP,
+        "name" => "Group 1"
+        "elements" => [
+                [
+                "id" => 1,
+                "condition" => "AND",
+                "column" => BetweenDateOperator::slug(),
+                "type" => QueryBuilder::CONDITION_ELEMENT_TYPE_INDIVIDUAL,
+                "operator" => BetweenDateOperator::slug(),
+                "value" => ["07.05.2024", "09.05.2024"]
+            ],
+            [
+                "id" => 2,
+                "condition" => "OR",
+                "column" => BetweenIntOperator::slug(),
+                "type" => QueryBuilder::CONDITION_ELEMENT_TYPE_INDIVIDUAL,
+                "operator" => BetweenIntOperator::slug(),
+                "value" => ["1", "3"]
+            ]
+        ]
+    ],
     // Other conditions...
 ];
 ```
