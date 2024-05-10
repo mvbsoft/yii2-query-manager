@@ -37,7 +37,7 @@ class CurrentDateOperator extends OperatorAbstract
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the value represents today's date, otherwise returns false.
      */
-    public static function phpCondition(string $column, $searchValue, array $data): bool
+    public static function phpConditions(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -59,7 +59,7 @@ class CurrentDateOperator extends OperatorAbstract
         return Carbon::createFromTimestamp($value)->isToday();
     }
 
-    public static function mongodbCondition($column, $searchValue) : array
+    public static function mongodbConditions($column, $searchValue) : array
     {
         return [];
     }
@@ -71,7 +71,7 @@ class CurrentDateOperator extends OperatorAbstract
      * @param mixed $searchValue Optional search value (not used in this function).
      * @return array The condition array for the query.
      */
-    public static function postgresqlCondition(string $column, $searchValue = null): array
+    public static function postgresqlConditions(string $column, $searchValue = null): array
     {
         // Return an expression to match the current date for the specified column
         return [new Expression("$column::date = CURRENT_DATE")];

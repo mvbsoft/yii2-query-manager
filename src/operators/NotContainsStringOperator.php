@@ -35,7 +35,7 @@ class NotContainsStringOperator extends OperatorAbstract
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the substring is found within the string, false otherwise.
      */
-    public static function phpCondition(string $column, $searchValue, array $data): bool
+    public static function phpConditions(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -59,7 +59,7 @@ class NotContainsStringOperator extends OperatorAbstract
         return preg_match($regex, $value) !== 1;
     }
 
-    public static function mongodbCondition($column, $searchValue) : array
+    public static function mongodbConditions($column, $searchValue) : array
     {
         return [];
     }
@@ -71,7 +71,7 @@ class NotContainsStringOperator extends OperatorAbstract
      * @param mixed $searchValue The value to search for.
      * @return array The condition array for the query.
      */
-    public static function postgresqlCondition(string $column, $searchValue): array
+    public static function postgresqlConditions(string $column, $searchValue): array
     {
         // Check if $searchValue is a scalar value
         if (!is_scalar($searchValue)) {

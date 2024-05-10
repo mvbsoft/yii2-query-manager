@@ -35,7 +35,7 @@ class IsNotNullOperator extends OperatorAbstract
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the value is not null, otherwise returns false.
      */
-    public static function phpCondition(string $column, $searchValue, array $data): bool
+    public static function phpConditions(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -44,7 +44,7 @@ class IsNotNullOperator extends OperatorAbstract
         return !is_null($value);
     }
 
-    public static function mongodbCondition($column, $searchValue) : array
+    public static function mongodbConditions($column, $searchValue) : array
     {
         return [];
     }
@@ -56,7 +56,7 @@ class IsNotNullOperator extends OperatorAbstract
      * @param mixed $searchValue Optional search value (not used in this function).
      * @return array The condition array for the query.
      */
-    public static function postgresqlCondition(string $column, $searchValue = null): array
+    public static function postgresqlConditions(string $column, $searchValue = null): array
     {
         // Construct a condition array to check if the specified column is not null
         return ['IS NOT', $column, null];

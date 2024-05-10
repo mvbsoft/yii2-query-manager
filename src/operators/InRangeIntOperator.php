@@ -35,7 +35,7 @@ class InRangeIntOperator extends OperatorAbstract
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the value matches any of the numeric values in the array, otherwise returns false.
      */
-    public static function phpCondition(string $column, $searchValue, array $data): bool
+    public static function phpConditions(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -72,7 +72,7 @@ class InRangeIntOperator extends OperatorAbstract
         return false;
     }
 
-    public static function mongodbCondition($column, $searchValue) : array
+    public static function mongodbConditions($column, $searchValue) : array
     {
         return [];
     }
@@ -84,7 +84,7 @@ class InRangeIntOperator extends OperatorAbstract
      * @param mixed $searchValue The array of values to search for.
      * @return array The condition array for the query.
      */
-    public static function postgresqlCondition(string $column, $searchValue): array
+    public static function postgresqlConditions(string $column, $searchValue): array
     {
         // Check if $searchValue is an array
         if (!is_array($searchValue)) {

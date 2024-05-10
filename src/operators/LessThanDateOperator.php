@@ -37,7 +37,7 @@ class LessThanDateOperator extends OperatorAbstract
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the value is less than the search value after converting them to timestamps, otherwise returns false.
      */
-    public static function phpCondition(string $column, $searchValue, array $data): bool
+    public static function phpConditions(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -55,7 +55,7 @@ class LessThanDateOperator extends OperatorAbstract
         return $value < $searchValue;
     }
 
-    public static function mongodbCondition($column, $searchValue) : array
+    public static function mongodbConditions($column, $searchValue) : array
     {
         return [];
     }
@@ -67,7 +67,7 @@ class LessThanDateOperator extends OperatorAbstract
      * @param mixed $searchValue The search value to compare against (can be a timestamp or any format convertible to a timestamp).
      * @return array The condition array for the query.
      */
-    public static function postgresqlCondition(string $column, $searchValue): array
+    public static function postgresqlConditions(string $column, $searchValue): array
     {
         // Convert $searchValue to a timestamp
         $searchValue = self::convertToTimestamp($searchValue);

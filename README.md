@@ -39,18 +39,25 @@ $queryBuilder = new QueryBuilder();
 ```
 ### Generating Conditions
 
-QueryManager provides methods for generating conditions for different condition types (PHP, MongoDB, PostgreSQL). 
+QueryManager provides methods for generating conditions for different conditions types (PHP, MongoDB, PostgreSQL). 
 You can use these methods to construct complex conditions easily.
 
 ```php
-// Generate a condition for a given query element
+// Generate a conditions for a given query element
 $queryElements = [
     // Your query elements here...
 ];
-$conditionType = 'postgresql'; // or 'mongodb' or 'php'
+$conditionsType = 'postgresql'; // or 'mongodb' or 'php'
 $data = []; // Your data array here...
 
-$condition = $queryBuilder->generateCondition($queryElements, $conditionType, $data);
+$conditions = $queryBuilder->generateConditions($queryElements, $conditionsType, $data);
+```
+
+### Filtering Query Elements
+This method is designed to delete unnecessary keys from an array of query elements. It ensures that only relevant information is retained for further processing.
+```php
+// Deleted no needed keys in array of query elements
+$result = $queryBuilder->filterConditions($queryElements, $data);
 ```
 
 ### Executing Queries
@@ -95,7 +102,7 @@ $conditions = [
         "id" => 1,
         "condition" => "AND",
         "column" => BetweenDateOperator::slug(),
-        "type" => QueryBuilder::CONDITION_ELEMENT_TYPE_INDIVIDUAL,
+        "type" => QueryBuilder::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL,
         "operator" => BetweenDateOperator::slug(),
         "value" => ["07.05.2024", "09.05.2024"]
     ],
@@ -103,21 +110,21 @@ $conditions = [
         "id" => 2,
         "condition" => "AND",
         "column" => BetweenIntOperator::slug(),
-        "type" => QueryBuilder::CONDITION_ELEMENT_TYPE_INDIVIDUAL,
+        "type" => QueryBuilder::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL,
         "operator" => BetweenIntOperator::slug(),
         "value" => ["1", "3"]
     ],
     [
         "id" => 2,
         "condition" => "AND",
-        "type" => QueryBuilder::CONDITION_ELEMENT_TYPE_GROUP,
+        "type" => QueryBuilder::CONDITIONS_ELEMENT_TYPE_GROUP,
         "name" => "Group 1"
         "elements" => [
                 [
                 "id" => 1,
                 "condition" => "AND",
                 "column" => BetweenDateOperator::slug(),
-                "type" => QueryBuilder::CONDITION_ELEMENT_TYPE_INDIVIDUAL,
+                "type" => QueryBuilder::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL,
                 "operator" => BetweenDateOperator::slug(),
                 "value" => ["07.05.2024", "09.05.2024"]
             ],
@@ -125,7 +132,7 @@ $conditions = [
                 "id" => 2,
                 "condition" => "OR",
                 "column" => BetweenIntOperator::slug(),
-                "type" => QueryBuilder::CONDITION_ELEMENT_TYPE_INDIVIDUAL,
+                "type" => QueryBuilder::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL,
                 "operator" => BetweenIntOperator::slug(),
                 "value" => ["1", "3"]
             ]

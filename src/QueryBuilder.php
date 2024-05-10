@@ -3,7 +3,6 @@
 namespace mvbsoft\queryManager;
 
 use Exception;
-use Yii;
 use yii\base\Component;
 use yii\base\DynamicModel;
 use yii\db\Connection;
@@ -21,17 +20,20 @@ use yii\db\Query as PostgresqlQuery;
 class QueryBuilder extends Component {
 
     // Constants defining logical conditions
-    public const CONDITION_OR = 'OR';
-    public const CONDITION_AND = 'AND';
+    public const OR = 'OR';
+    public const AND = 'AND';
 
-    // Constants defining condition types
-    public const CONDITION_TYPE_PHP = 'php';
-    public const CONDITION_TYPE_MONGODB = 'mongodb';
-    public const CONDITION_TYPE_POSTGRESQL = 'postgresql';
+    // Constants defining conditions types
+    public const CONDITIONS_TYPE_PHP = 'php';
+    public const CONDITIONS_TYPE_MONGODB = 'mongodb';
+    public const CONDITIONS_TYPE_POSTGRESQL = 'postgresql';
 
-    // Constants defining condition element types
-    public const CONDITION_ELEMENT_TYPE_GROUP = 'group';
-    public const CONDITION_ELEMENT_TYPE_INDIVIDUAL = 'individual';
+    // Constants defining conditions element types
+    public const CONDITIONS_ELEMENT_TYPE_GROUP = 'group';
+    public const CONDITIONS_ELEMENT_TYPE_INDIVIDUAL = 'individual';
+
+    public const CONDITIONS_ELEMENT_KEYS_GROUP = ['id', 'condition', 'type', 'name', 'elements'];
+    public const CONDITIONS_ELEMENT_KEYS_INDIVIDUAL = ['id', 'condition', 'column', 'type', 'operator', 'value'];
 
     /**
      * @var string The folder path containing operator classes.
@@ -54,8 +56,8 @@ class QueryBuilder extends Component {
     public static function conditions(): array
     {
         return [
-            self::CONDITION_OR,
-            self::CONDITION_AND,
+            self::OR,
+            self::AND,
         ];
     }
 
@@ -67,22 +69,22 @@ class QueryBuilder extends Component {
     public static function conditionTypes(): array
     {
         return [
-            self::CONDITION_TYPE_PHP,
-            self::CONDITION_TYPE_MONGODB,
-            self::CONDITION_TYPE_POSTGRESQL,
+            self::CONDITIONS_TYPE_PHP,
+            self::CONDITIONS_TYPE_MONGODB,
+            self::CONDITIONS_TYPE_POSTGRESQL,
         ];
     }
 
     /**
-     * Returns an array of condition element types.
+     * Returns an array of conditions element types.
      *
-     * @return string[] Array of condition element types.
+     * @return string[] Array of conditions element types.
      */
-    public static function conditionElementsTypes(): array
+    public static function conditionsElementsTypes(): array
     {
         return [
-            self::CONDITION_ELEMENT_TYPE_GROUP,
-            self::CONDITION_ELEMENT_TYPE_INDIVIDUAL,
+            self::CONDITIONS_ELEMENT_TYPE_GROUP,
+            self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL,
         ];
     }
 
@@ -149,20 +151,20 @@ class QueryBuilder extends Component {
     }
 
     /**
-     * Creates a dynamic model for a group condition.
+     * Creates a dynamic model for a group conditions.
      *
-     * @return DynamicModel A dynamic model for a group condition.
+     * @return DynamicModel A dynamic model for a group conditions.
      */
     public function groupModal(): DynamicModel
     {
         // Create dynamic model with validation rules
-        $model = new DynamicModel(['id', 'column', 'type', 'operator', 'value']);
+        $model = new DynamicModel(self::CONDITIONS_ELEMENT_KEYS_GROUP);
 
         // Add validation rules
+        $model->addRule(self::CONDITIONS_ELEMENT_KEYS_GROUP, 'required');
         $model->addRule(['id'], 'string', ['min' => 6, 'max' => 12]);
-        $model->addRule(['condition', 'type', 'name'], 'required');
         $model->addRule(['condition'], 'in', ['range' => self::conditions()]);
-        $model->addRule(['type'], 'in', ['range' => self::conditionElementsTypes()]);
+        $model->addRule(['type'], 'in', ['range' => self::conditionsElementsTypes()]);
         $model->addRule(['name'], 'string', ['min' => 1, 'max' => 64]);
         $model->addRule(['elements'], ArrayValidator::class, ['maxSizeInBytes' => 1024 * 1024 * 2, 'skipOnEmpty' => false]);
 
@@ -170,21 +172,21 @@ class QueryBuilder extends Component {
     }
 
     /**
-     * Creates a dynamic model for an individual condition.
+     * Creates a dynamic model for an individual conditions.
      *
-     * @return DynamicModel A dynamic model for an individual condition.
+     * @return DynamicModel A dynamic model for an individual conditions.
      */
     public function individualModel(): DynamicModel
     {
         // Create dynamic model with validation rules
-        $model = new DynamicModel(['id', 'condition', 'column', 'type', 'operator', 'value']);
+        $model = new DynamicModel(self::CONDITIONS_ELEMENT_KEYS_INDIVIDUAL);
 
         // Add validation rules
-        $model->addRule(['condition', 'column', 'type', 'operator', 'value'], 'required');
+        $model->addRule(self::CONDITIONS_ELEMENT_KEYS_INDIVIDUAL, 'required');
         $model->addRule(['id'], 'string', ['min' => 6, 'max' => 12]);
         $model->addRule(['condition'], 'in', ['range' => self::conditions()]);
         $model->addRule(['column'], 'string', ['min' => 1, 'max' => 255]);
-        $model->addRule(['type'], 'in', ['range' => self::conditionElementsTypes()]);
+        $model->addRule(['type'], 'in', ['range' => self::conditionsElementsTypes()]);
         $model->addRule(['operator'], 'in', ['range' => $this->operatorSlugs]);
 
         // Add custom validation rule for value
@@ -204,24 +206,54 @@ class QueryBuilder extends Component {
         return $model;
     }
 
+
+    /**
+     * Delete no needed keys from array of query elements
+     *
+     * @param array $elements The array of query elements.
+     * @return array The array filtered conditions elements
+     */
+    public function filterConditions(array $elements): array
+    {
+        foreach ($elements as $k => $element){
+            $type = $element['type'] ?? null;
+
+            if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
+                // Removing the extra keys
+                $element = array_intersect_key($element, array_flip(self::CONDITIONS_ELEMENT_KEYS_INDIVIDUAL));
+            }
+
+            if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
+                // Removing the extra keys
+                $element = array_intersect_key($element, array_flip(self::CONDITIONS_ELEMENT_KEYS_GROUP));
+
+                $element = $this->filterConditions($element);
+            }
+
+            $elements[$k] = $element;
+        }
+
+        return $elements;
+    }
+
     /**
      * Validates query conditions.
      *
-     * @param array $queryElements The array of query elements.
+     * @param array $elements The array of query elements.
      * @param string $errorKey The main error key.
      * @return array The array of errors or empty array if there are no errors.
      */
-    public function validateConditions(array $queryElements, string $errorKey = 'conditions'): array
+    public function validateConditions(array $elements, string $errorKey = 'conditions'): array
     {
         $errors = [];
 
-        foreach ($queryElements as $key => $value){
+        foreach ($elements as $key => $value){
             $type = $value['type'] ?? null;
 
-            if($type == self::CONDITION_ELEMENT_TYPE_INDIVIDUAL){
+            if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
                 $model = $this->individualModel();
             }
-            elseif($type == self::CONDITION_ELEMENT_TYPE_GROUP){
+            elseif($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
                 $model = $this->groupModal();
             }
             else{
@@ -238,7 +270,7 @@ class QueryBuilder extends Component {
                 }
             }
 
-            if($type == self::CONDITION_ELEMENT_TYPE_GROUP){
+            if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
                 $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
 
                 foreach ($elementErrors as $ek => $error){
@@ -254,14 +286,14 @@ class QueryBuilder extends Component {
      * Generates a condition for a given query element.
      *
      * @param array $queryElements The array of query elements.
-     * @param string $conditionType The condition type (php, mongodb, postgresql).
+     * @param string $conditionsType The condition type (php, mongodb, postgresql).
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return PostgresqlQuery|MongodbQuery The generated query.
      */
-    public function generateCondition(array $queryElements, string $conditionType, array $data = [])
+    public function generateConditions(array $queryElements, string $conditionsType, array $data = [])
     {
-        // Initialize query object based on condition type
-        if($conditionType == self::CONDITION_TYPE_MONGODB){
+        // Initialize query object based on conditions type
+        if($conditionsType == self::CONDITIONS_TYPE_MONGODB){
             $query = new MongodbQuery();
         }
         else{
@@ -274,33 +306,33 @@ class QueryBuilder extends Component {
             $condition      = $element['condition'];
 
             // Handle individual elements
-            if($type == self::CONDITION_ELEMENT_TYPE_INDIVIDUAL){
+            if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
                 $column      = $element['column'];
                 $operator    = $element['operator'];
                 $searchValue = $element['value'];
 
-                $where = $this->generateWhere($operator, $conditionType, $searchValue, $column, $data);
+                $where = $this->generateWhere($operator, $conditionsType, $searchValue, $column, $data);
 
-                if($condition == self::CONDITION_OR && !is_null($where)){
+                if($condition == self::OR && !is_null($where)){
                     $query->orWhere($where);
                 }
 
-                if($condition == self::CONDITION_AND && !is_null($where)){
+                if($condition == self::AND && !is_null($where)){
                     $query->andWhere($where);
                 }
             }
 
             // Handle group elements
-            if($type == self::CONDITION_ELEMENT_TYPE_GROUP){
+            if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
                 $groupElements = $element['elements'];
 
-                $groupQuery = $this->generateCondition($groupElements, $conditionType, $data);
+                $groupQuery = $this->generateConditions($groupElements, $conditionsType, $data);
 
-                if($condition == self::CONDITION_OR && !empty($groupQuery->where)){
+                if($condition == self::OR && !empty($groupQuery->where)){
                     $query->orWhere($groupQuery->where);
                 }
 
-                if($condition == self::CONDITION_AND && !empty($groupQuery->where)){
+                if($condition == self::AND && !empty($groupQuery->where)){
                     $query->andWhere($groupQuery->where);
                 }
             }
@@ -321,8 +353,8 @@ class QueryBuilder extends Component {
         // Create a query builder instance
         $queryBuilder = new \yii\db\QueryBuilder(new Connection());
 
-        // Generate the condition for the query
-        $query = $this->generateCondition($queryElements,  self::CONDITION_TYPE_PHP,  $data);
+        // Generate the conditions for the query
+        $query = $this->generateConditions($queryElements,  self::CONDITIONS_TYPE_PHP,  $data);
 
         // Initialize parameters array
         $params = [];
@@ -352,7 +384,7 @@ class QueryBuilder extends Component {
      */
     public function mongodbQuery(array $queryElements): MongodbQuery
     {
-        return $this->generateCondition($queryElements,  self::CONDITION_TYPE_MONGODB);
+        return $this->generateConditions($queryElements,  self::CONDITIONS_TYPE_MONGODB);
     }
 
     /**
@@ -363,20 +395,20 @@ class QueryBuilder extends Component {
      */
     public function postgresqlQuery(array $queryElements): PostgresqlQuery
     {
-        return $this->generateCondition($queryElements,  self::CONDITION_TYPE_POSTGRESQL);
+        return $this->generateConditions($queryElements,  self::CONDITIONS_TYPE_POSTGRESQL);
     }
 
     /**
-     * Generates a WHERE clause or condition array for a given operator, condition type, search value, and column.
+     * Generates a WHERE clause or conditions array for a given operator, conditions type, search value, and column.
      *
      * @param string $operatorSlug The operator slug.
-     * @param string $conditionType The condition type (php, mongodb, postgresql).
+     * @param string $conditionsType The conditions type (php, mongodb, postgresql).
      * @param mixed $searchValue The value to search for.
      * @param string $column The column where the search is performed.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return int|array|null The generated condition.
+     * @return int|array|null The generated conditions.
      */
-    public function generateWhere(string $operatorSlug, string $conditionType, $searchValue, string $column, array $data = []) {
+    public function generateWhere(string $operatorSlug, string $conditionsType, $searchValue, string $column, array $data = []) {
         // Get the operator object by slug
         $operator = $this->getOperatorBySlug($operatorSlug);
 
@@ -385,17 +417,17 @@ class QueryBuilder extends Component {
             return null;
         }
 
-        // Generate condition based on condition type
-        if($conditionType == self::CONDITION_TYPE_PHP){
-            return intval($operator::phpCondition($column,$searchValue,  $data));
+        // Generate conditions based on conditions type
+        if($conditionsType == self::CONDITIONS_TYPE_PHP){
+            return intval($operator::phpConditions($column,$searchValue,  $data));
         }
 
-        if($conditionType == self::CONDITION_TYPE_MONGODB){
-            return $operator::mongodbCondition($column, $searchValue);
+        if($conditionsType == self::CONDITIONS_TYPE_MONGODB){
+            return $operator::mongodbConditions($column, $searchValue);
         }
 
-        if($conditionType == self::CONDITION_TYPE_POSTGRESQL){
-            return $operator::postgresqlCondition($column, $searchValue);
+        if($conditionsType == self::CONDITIONS_TYPE_POSTGRESQL){
+            return $operator::postgresqlConditions($column, $searchValue);
         }
 
         return null;

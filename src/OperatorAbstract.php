@@ -116,7 +116,7 @@ abstract class OperatorAbstract extends BaseObject
      * @param string $column The column name (the value key in the PHP array of data).
      * @return bool Returns true if `$searchValue` strictly equals `$value`, otherwise false.
      */
-    abstract public static function phpCondition(string $column, $searchValue, array $data) : bool;
+    abstract public static function phpConditions(string $column, $searchValue, array $data) : bool;
 
     /**
      * Compares the `$searchValue` with `$fieldValue` using strict equality check in MongoDB.
@@ -125,7 +125,7 @@ abstract class OperatorAbstract extends BaseObject
      * @param mixed $searchValue The value to search in MongoDB.
      * @return array Returns an array of where condition for using in Yii2 Query Builder.
      */
-    abstract public static function mongodbCondition(string $column, $searchValue) : array;
+    abstract public static function mongodbConditions(string $column, $searchValue) : array;
 
     /**
      * Compares the `$searchValue` with `$fieldValue` using strict equality check in PostgreSQL.
@@ -134,7 +134,7 @@ abstract class OperatorAbstract extends BaseObject
      * @param mixed $searchValue The value to search in PostgreSQL.
      * @return array Returns an array of where condition for using in Yii2 Query Builder.
      */
-    abstract public static function postgresqlCondition(string $column, $searchValue) : array;
+    abstract public static function postgresqlConditions(string $column, $searchValue) : array;
 
     /**
      * Retrieves a value from a PHP array using the specified column name, simulating a database query.
@@ -147,16 +147,25 @@ abstract class OperatorAbstract extends BaseObject
         return $data[$column] ?? null;
     }
 
+    /**
+     * Convert a date or timestamp to a UNIX timestamp.
+     *
+     * @param mixed $date The date or timestamp to convert.
+     * @return int|null The UNIX timestamp or null if conversion fails.
+     */
     public static function convertToTimestamp($date): ?int
     {
+        // Check if $date is already numeric
         if(is_numeric($date)){
             $date = intval($date);
         }
 
+        // Check if $date is a string and convert it to a timestamp
         if(is_string($date)){
             $date = strtotime($date);
         }
 
+        // Check if $date is not an integer, set it to null
         if(!is_integer($date)){
             $date = null;
         }

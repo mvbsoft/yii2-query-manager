@@ -37,7 +37,7 @@ class EqualDateOperator extends OperatorAbstract
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if both values represent the same day, otherwise returns false.
      */
-    public static function phpCondition(string $column, $searchValue, array $data): bool
+    public static function phpConditions(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -59,7 +59,7 @@ class EqualDateOperator extends OperatorAbstract
         return $searchValue->isSameDay($value);
     }
 
-    public static function mongodbCondition($column, $searchValue) : array
+    public static function mongodbConditions($column, $searchValue) : array
     {
         return [];
     }
@@ -71,7 +71,7 @@ class EqualDateOperator extends OperatorAbstract
      * @param mixed $searchValue The value to search for (can be a timestamp or any format convertible to a timestamp).
      * @return array The condition array for the query.
      */
-    public static function postgresqlCondition(string $column, $searchValue): array
+    public static function postgresqlConditions(string $column, $searchValue): array
     {
         // Convert $searchValue to a timestamp
         $searchTimestamp = self::convertToTimestamp($searchValue);

@@ -35,7 +35,7 @@ class NotEqualStringOperator extends OperatorAbstract
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if the scalar values are not equal after converting them to strings, otherwise returns false.
      */
-    public static function phpCondition(string $column, $searchValue, array $data): bool
+    public static function phpConditions(string $column, $searchValue, array $data): bool
     {
         // Get value from array
         $value = self::getValue($column, $data);
@@ -49,7 +49,7 @@ class NotEqualStringOperator extends OperatorAbstract
         return strval($searchValue) !== strval($value);
     }
 
-    public static function mongodbCondition($column, $searchValue) : array
+    public static function mongodbConditions($column, $searchValue) : array
     {
         return [];
     }
@@ -61,7 +61,7 @@ class NotEqualStringOperator extends OperatorAbstract
      * @param mixed $searchValue The scalar value to search for (string, number, or boolean).
      * @return array The condition array for the query.
      */
-    public static function postgresqlCondition(string $column, $searchValue): array
+    public static function postgresqlConditions(string $column, $searchValue): array
     {
         // Check if $searchValue is a scalar value (string, number, or boolean)
         if (!is_scalar($searchValue)) {
