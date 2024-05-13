@@ -250,31 +250,39 @@ class QueryBuilder extends Component {
         foreach ($elements as $key => $value){
             $type = $value['type'] ?? null;
 
-            if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
-                $model = $this->individualModel();
+            if(!is_array($value)){
+                $errors["$errorKey.$key"] = "Query element should be and array.";
             }
-            elseif($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
-                $model = $this->groupModal();
+            elseif (!in_array($type, self::conditionsElementsTypes())){
+                $errors["$errorKey.$key.type"] = "Type is invalid.";
             }
             else{
-                return $errors;
-            }
-
-            $model->setAttributes($value);
-
-            $model->validate();
-
-            if($model->hasErrors()){
-                foreach ($model->errors as $fieldAttribute => $fieldErrors){
-                    $errors["$errorKey.$key.$fieldAttribute"] = $fieldErrors;
+                if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
+                    $model = $this->individualModel();
                 }
-            }
+                elseif($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
+                    $model = $this->groupModal();
+                }
+                else{
+                    return $errors;
+                }
 
-            if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
-                $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
+                $model->setAttributes($value);
 
-                foreach ($elementErrors as $ek => $error){
-                    $errors[$ek] = $error;
+                $model->validate();
+
+                if($model->hasErrors()){
+                    foreach ($model->errors as $fieldAttribute => $fieldErrors){
+                        $errors["$errorKey.$key.$fieldAttribute"] = $fieldErrors;
+                    }
+                }
+
+                if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
+                    $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
+
+                    foreach ($elementErrors as $ek => $error){
+                        $errors[$ek] = $error;
+                    }
                 }
             }
         }
