@@ -33,7 +33,9 @@ class QueryBuilder extends Component {
     public const CONDITIONS_ELEMENT_TYPE_INDIVIDUAL = 'individual';
 
     public const CONDITIONS_ELEMENT_KEYS_GROUP = ['id', 'condition', 'type', 'name', 'elements'];
+    public const CONDITIONS_ELEMENT_KEYS_GROUP_REQUIRED = ['id', 'condition', 'type', 'elements'];
     public const CONDITIONS_ELEMENT_KEYS_INDIVIDUAL = ['id', 'condition', 'column', 'type', 'operator', 'value'];
+    public const CONDITIONS_ELEMENT_KEYS_INDIVIDUAL_REQUIRED = ['id', 'condition', 'column', 'type', 'operator'];
 
     /**
      * @var string The folder path containing operator classes.
@@ -161,7 +163,7 @@ class QueryBuilder extends Component {
         $model = new DynamicModel(self::CONDITIONS_ELEMENT_KEYS_GROUP);
 
         // Add validation rules
-        $model->addRule(self::CONDITIONS_ELEMENT_KEYS_GROUP, 'required');
+        $model->addRule(self::CONDITIONS_ELEMENT_KEYS_GROUP_REQUIRED, 'required');
         $model->addRule(['id'], 'string', ['min' => 6, 'max' => 12]);
         $model->addRule(['condition'], 'in', ['range' => self::conditions()]);
         $model->addRule(['type'], 'in', ['range' => self::conditionsElementsTypes()]);
@@ -182,7 +184,7 @@ class QueryBuilder extends Component {
         $model = new DynamicModel(self::CONDITIONS_ELEMENT_KEYS_INDIVIDUAL);
 
         // Add validation rules
-        $model->addRule(self::CONDITIONS_ELEMENT_KEYS_INDIVIDUAL, 'required');
+        $model->addRule(self::CONDITIONS_ELEMENT_KEYS_INDIVIDUAL_REQUIRED, 'required');
         $model->addRule(['id'], 'string', ['min' => 6, 'max' => 12]);
         $model->addRule(['condition'], 'in', ['range' => self::conditions()]);
         $model->addRule(['column'], 'string', ['min' => 1, 'max' => 255]);
