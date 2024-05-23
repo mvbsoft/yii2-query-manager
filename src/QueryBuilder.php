@@ -29,9 +29,12 @@ class QueryBuilder extends Component {
     public const CONDITIONS_TYPE_POSTGRESQL = 'postgresql';
 
     // Constants defining conditions element types
+    public const CONDITIONS_ELEMENT_TYPE_EVENT = 'event';
     public const CONDITIONS_ELEMENT_TYPE_GROUP = 'group';
     public const CONDITIONS_ELEMENT_TYPE_INDIVIDUAL = 'individual';
 
+    public const CONDITIONS_ELEMENT_KEYS_EVENT = ['id', 'condition', 'type', 'name', 'elements'];
+    public const CONDITIONS_ELEMENT_KEYS_EVENT_REQUIRED = ['id', 'condition', 'type', 'elements'];
     public const CONDITIONS_ELEMENT_KEYS_GROUP = ['id', 'condition', 'type', 'name', 'elements'];
     public const CONDITIONS_ELEMENT_KEYS_GROUP_REQUIRED = ['id', 'condition', 'type', 'elements'];
     public const CONDITIONS_ELEMENT_KEYS_INDIVIDUAL = ['id', 'condition', 'column', 'type', 'operator', 'value'];
@@ -85,6 +88,7 @@ class QueryBuilder extends Component {
     public static function conditionsElementsTypes(): array
     {
         return [
+            self::CONDITIONS_ELEMENT_TYPE_EVENT,
             self::CONDITIONS_ELEMENT_TYPE_GROUP,
             self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL,
         ];
@@ -153,11 +157,32 @@ class QueryBuilder extends Component {
     }
 
     /**
+     * Creates a dynamic model for an event conditions.
+     *
+     * @return DynamicModel A dynamic model for an event conditions.
+     */
+    public function eventModel(): DynamicModel
+    {
+        // Create dynamic model with validation rules
+        $model = new DynamicModel(self::CONDITIONS_ELEMENT_KEYS_EVENT);
+
+        // Add validation rules
+        $model->addRule(self::CONDITIONS_ELEMENT_KEYS_EVENT_REQUIRED, 'required');
+        $model->addRule(['id'], 'string', ['min' => 6, 'max' => 12]);
+        $model->addRule(['name'], 'string', ['min' => 1, 'max' => 64]);
+        $model->addRule(['condition'], 'in', ['range' => self::conditions()]);
+        $model->addRule(['type'], 'in', ['range' => self::conditionsElementsTypes()]);
+        $model->addRule(['elements'], ArrayValidator::class, ['maxSizeInBytes' => 1024 * 1024 * 2, 'skipOnEmpty' => false]);
+
+        return $model;
+    }
+
+    /**
      * Creates a dynamic model for a group conditions.
      *
      * @return DynamicModel A dynamic model for a group conditions.
      */
-    public function groupModal(): DynamicModel
+    public function groupModel(): DynamicModel
     {
         // Create dynamic model with validation rules
         $model = new DynamicModel(self::CONDITIONS_ELEMENT_KEYS_GROUP);
@@ -232,6 +257,13 @@ class QueryBuilder extends Component {
                 $element = $this->filterConditions($element);
             }
 
+            if($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
+                // Removing the extra keys
+                $element = array_intersect_key($element, array_flip(self::CONDITIONS_ELEMENT_KEYS_EVENT));
+
+                $element = $this->filterConditions($element);
+            }
+
             $elements[$k] = $element;
         }
 
@@ -263,7 +295,10 @@ class QueryBuilder extends Component {
                     $model = $this->individualModel();
                 }
                 elseif($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
-                    $model = $this->groupModal();
+                    $model = $this->groupModel();
+                }
+                elseif($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
+                    $model = $this->eventModel();
                 }
                 else{
                     return $errors;
@@ -280,6 +315,14 @@ class QueryBuilder extends Component {
                 }
 
                 if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
+                    $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
+
+                    foreach ($elementErrors as $ek => $error){
+                        $errors[$ek] = $error;
+                    }
+                }
+
+                if($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
                     $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
 
                     foreach ($elementErrors as $ek => $error){
@@ -344,6 +387,21 @@ class QueryBuilder extends Component {
 
                 if($condition == self::AND && !empty($groupQuery->where)){
                     $query->andWhere($groupQuery->where);
+                }
+            }
+
+            // Handle event elements
+            if($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
+                $eventElements = $element['elements'];
+
+                $eventQuery = $this->generateConditions($eventElements, $conditionsType, $data);
+
+                if($condition == self::OR && !empty($eventQuery->where)){
+                    $query->orWhere($eventQuery->where);
+                }
+
+                if($condition == self::AND && !empty($eventQuery->where)){
+                    $query->andWhere($eventQuery->where);
                 }
             }
         }
