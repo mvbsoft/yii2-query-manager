@@ -33,8 +33,8 @@ class QueryBuilder extends Component {
     public const CONDITIONS_ELEMENT_TYPE_GROUP = 'group';
     public const CONDITIONS_ELEMENT_TYPE_INDIVIDUAL = 'individual';
 
-    public const CONDITIONS_ELEMENT_KEYS_EVENT = ['id', 'condition', 'type', 'name', 'elements'];
-    public const CONDITIONS_ELEMENT_KEYS_EVENT_REQUIRED = ['id', 'condition', 'type', 'elements'];
+    public const CONDITIONS_ELEMENT_KEYS_EVENT = ['id', 'condition', 'type', 'name', 'event', 'elements'];
+    public const CONDITIONS_ELEMENT_KEYS_EVENT_REQUIRED = ['id', 'condition', 'type', 'event', 'elements'];
     public const CONDITIONS_ELEMENT_KEYS_GROUP = ['id', 'condition', 'type', 'name', 'elements'];
     public const CONDITIONS_ELEMENT_KEYS_GROUP_REQUIRED = ['id', 'condition', 'type', 'elements'];
     public const CONDITIONS_ELEMENT_KEYS_INDIVIDUAL = ['id', 'condition', 'column', 'type', 'operator', 'value'];
@@ -170,6 +170,7 @@ class QueryBuilder extends Component {
         $model->addRule(self::CONDITIONS_ELEMENT_KEYS_EVENT_REQUIRED, 'required');
         $model->addRule(['id'], 'string', ['min' => 6, 'max' => 12]);
         $model->addRule(['name'], 'string', ['min' => 1, 'max' => 64]);
+        $model->addRule(['event'], 'string', ['min' => 1, 'max' => 64]);
         $model->addRule(['condition'], 'in', ['range' => self::conditions()]);
         $model->addRule(['type'], 'in', ['range' => self::conditionsElementsTypes()]);
         $model->addRule(['elements'], ArrayValidator::class, ['maxSizeInBytes' => 1024 * 1024 * 2, 'skipOnEmpty' => false]);
