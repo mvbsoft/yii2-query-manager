@@ -286,10 +286,10 @@ class QueryBuilder extends Component {
             $type = $value['type'] ?? null;
 
             if(!is_array($value)){
-                $errors["$errorKey.$key"] = "Query element should be and array.";
+                $errors["$errorKey.$key"] = ["Query element should be and array."];
             }
             elseif (!in_array($type, self::conditionsElementsTypes())){
-                $errors["$errorKey.$key.type"] = "Type is invalid.";
+                $errors["$errorKey.$key.type"] = ["Type is invalid."];
             }
             else{
                 if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
@@ -318,16 +318,16 @@ class QueryBuilder extends Component {
                 if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
                     $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
 
-                    foreach ($elementErrors as $ek => $error){
-                        $errors[$ek] = $error;
+                    foreach ($elementErrors as $ek => $errors){
+                        $errors[$ek] = $errors;
                     }
                 }
 
                 if($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
                     $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
 
-                    foreach ($elementErrors as $ek => $error){
-                        $errors[$ek] = $error;
+                    foreach ($elementErrors as $ek => $errors){
+                        $errors[$ek] = $errors;
                     }
                 }
             }
