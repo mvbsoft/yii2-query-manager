@@ -227,7 +227,7 @@ class QueryBuilder extends Component {
         });
 
         // Add validation rule for array size
-        $model->addRule(['value'], ArrayValidator::class, ['maxSizeInBytes' => 100, 'when' => function($model){
+        $model->addRule(['value'], ArrayValidator::class, ['maxSizeInBytes' => 1024 * 1024 * 2, 'when' => function($model){
             return is_array($model->value);
         }]);
 
