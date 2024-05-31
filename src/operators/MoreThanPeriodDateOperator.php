@@ -3,7 +3,6 @@
 namespace mvbsoft\queryManager\operators;
 
 use mvbsoft\queryManager\OperatorAbstract;
-use yii\db\Expression;
 
 class MoreThanPeriodDateOperator extends OperatorAbstract
 {

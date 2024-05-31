@@ -3,6 +3,7 @@
 namespace mvbsoft\queryManager\operators;
 
 use Carbon\Carbon;
+use MongoDB\BSON\UTCDateTime;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
@@ -39,18 +40,48 @@ class CurrentDayOperator extends OperatorAbstract
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // TODO
+        // Get value from array
+        $value = self::getValue($column, $data);
 
-        return true;
-    }
+        // Check if $value is a scalar value (string, number, or boolean)
+        if (!is_scalar($value)) {
+            return false; // If not, return false
+        }
 
-    public static function mongodbConditions($column, $searchValue) : array
-    {
-        return [];
+        // Convert $value to a timestamp
+        $value = self::convertToTimestamp($value);
+
+        // Check if the conversion was successful
+        if (is_null($value)) {
+            return false; // If not, return false
+        }
+
+        // Check if the value represents the current day
+        return Carbon::createFromTimestamp($value)->isToday();
     }
 
     /**
-     * Generate a condition array for the query builder to match the current date.
+     * Generate a condition array for MongoDB to match the current day.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue Optional search value (not used in this function).
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue) : array
+    {
+        $start = Carbon::today()->startOfDay()->timestamp;
+        $end = Carbon::today()->endOfDay()->timestamp;
+
+        return [
+            $column => [
+                '$gte' => new UTCDateTime($start * 1000),
+                '$lte' => new UTCDateTime($end * 1000),
+            ],
+        ];
+    }
+
+    /**
+     * Generate a condition array for the query builder to match the current day.
      *
      * @param string $column The column name.
      * @param mixed $searchValue Optional search value (not used in this function).
@@ -58,9 +89,9 @@ class CurrentDayOperator extends OperatorAbstract
      */
     public static function postgresqlConditions(string $column, $searchValue = null): array
     {
-        // TODO
-
-        return [];
+        return [
+            'and',
+            [new Expression("date($column) = current_date")]
+        ];
     }
-
 }

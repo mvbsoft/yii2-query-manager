@@ -2,9 +2,7 @@
 
 namespace mvbsoft\queryManager\operators;
 
-use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
-use yii\db\Expression;
 
 class LessThanPeriodDateOperator extends OperatorAbstract
 {

@@ -234,7 +234,6 @@ class QueryBuilder extends Component {
         return $model;
     }
 
-
     /**
      * Delete no needed keys from array of query elements
      *

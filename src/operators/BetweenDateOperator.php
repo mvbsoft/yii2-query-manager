@@ -42,13 +42,17 @@ class BetweenDateOperator extends OperatorAbstract
         $value = self::getValue($column, $data);
 
         // Check if $searchValue is an array with exactly two elements
-        if(!is_array($searchValue) || count($searchValue) !== 2){
+        if(
+            !is_array($searchValue) ||
+            !array_key_exists('from', $searchValue)||
+            !array_key_exists('to', $searchValue))
+        {
             return false;
         }
 
         // Convert start and end timestamps to Unix timestamp format
-        $fromDate = self::convertToTimestamp($searchValue[0]);
-        $toDate   = self::convertToTimestamp($searchValue[1]);
+        $fromDate = self::convertToTimestamp($searchValue['from']);
+        $toDate   = self::convertToTimestamp($searchValue['to']);
         $value    = self::convertToTimestamp($value);
 
         // Check if any of the timestamps couldn't be converted
@@ -75,13 +79,17 @@ class BetweenDateOperator extends OperatorAbstract
     public static function postgresqlConditions(string $column, $searchValue) : array
     {
         // Check if $searchValue is an array with exactly two elements
-        if(!is_array($searchValue) || count($searchValue) !== 2){
+        if(
+            !is_array($searchValue) ||
+            !array_key_exists('from', $searchValue)||
+            !array_key_exists('to', $searchValue))
+        {
             return [];
         }
 
         // Convert start and end timestamps to Unix timestamp format
-        $fromDate = self::convertToTimestamp($searchValue[0]);
-        $toDate   = self::convertToTimestamp($searchValue[1]);
+        $fromDate = self::convertToTimestamp($searchValue['from']);
+        $toDate   = self::convertToTimestamp($searchValue['to']);
 
         // Construct the condition for between two timestamps
         return ['between', $column, new Expression("to_timestamp($fromDate)"), new Expression("to_timestamp($toDate)")];

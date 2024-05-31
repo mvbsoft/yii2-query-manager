@@ -41,13 +41,17 @@ class BetweenIntOperator extends OperatorAbstract
         $value = self::getValue($column, $data);
 
         // Check if $searchValue is an array and has exactly two elements
-        if (!is_array($searchValue) || count($searchValue) !== 2) {
-            return false; // If not, return false
+        if(
+            !is_array($searchValue) ||
+            !array_key_exists('from', $searchValue)||
+            !array_key_exists('to', $searchValue))
+        {
+            return false;
         }
 
         // Get the start and end values of the range
-        $from = $searchValue[0];
-        $to = $searchValue[1];
+        $from = $searchValue['from'];
+        $to = $searchValue['to'];
 
         // Check if all values are numeric
         if (!is_numeric($from) || !is_numeric($to) || !is_numeric($value)) {
@@ -78,13 +82,17 @@ class BetweenIntOperator extends OperatorAbstract
     public static function postgresqlConditions(string $column, $searchValue) : array
     {
         // Check if $searchValue is an array and has exactly two elements
-        if (!is_array($searchValue) || count($searchValue) !== 2) {
-            return []; // If not, return false
+        if(
+            !is_array($searchValue) ||
+            !array_key_exists('from', $searchValue)||
+            !array_key_exists('to', $searchValue))
+        {
+            return [];
         }
 
         // Get the start and end values of the range
-        $from = $searchValue[0];
-        $to = $searchValue[1];
+        $from = $searchValue['from'];
+        $to = $searchValue['to'];
 
         // Check if all values are numeric
         if (!is_numeric($from) || !is_numeric($to) ) {
