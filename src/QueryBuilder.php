@@ -312,6 +312,8 @@ class QueryBuilder extends Component {
                     foreach ($model->errors as $fieldAttribute => $fieldErrors){
                         $errors["$errorKey.$key.$fieldAttribute"] = $fieldErrors;
                     }
+
+                    continue;
                 }
 
                 if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
