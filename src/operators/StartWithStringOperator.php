@@ -51,10 +51,9 @@ class StartWithStringOperator extends OperatorAbstract
 
         // Escape special characters
         $escapedSearchValue = preg_quote($searchValue, '/');
-        $escapedValue = preg_quote($value, '/');
 
         // Check if $value starts with $searchValue using the regular expression pattern
-        return preg_match("/^{$escapedSearchValue}/i", $escapedValue) === 1;
+        return preg_match("/^{$escapedSearchValue}/i", $value) === 1;
     }
 
     public static function mongodbConditions($column, $searchValue) : array

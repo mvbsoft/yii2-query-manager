@@ -52,11 +52,8 @@ class NotContainsStringOperator extends OperatorAbstract
         // Escape special characters in $searchValue
         $escapedSearchValue = preg_quote($searchValue, '/');
 
-        // Create a regular expression for searching $searchValue within $value without considering case sensitivity
-        $regex = "/{$escapedSearchValue}/i";
-
         // Check if $searchValue is not found within $value using the regular expression without considering case sensitivity
-        return preg_match($regex, $value) !== 1;
+        return preg_match("/{$escapedSearchValue}/i", $value) !== 1;
     }
 
     public static function mongodbConditions($column, $searchValue) : array

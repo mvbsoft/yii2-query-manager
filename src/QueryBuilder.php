@@ -217,15 +217,6 @@ class QueryBuilder extends Component {
         $model->addRule(['type'], 'in', ['range' => self::conditionsElementsTypes()]);
         $model->addRule(['operator'], 'in', ['range' => $this->operatorSlugs]);
 
-        // Add custom validation rule for value
-        $model->addRule(['value'], function ($attribute) use ($model) {
-            $value = $model->$attribute;
-
-            if(!is_string($value) && !is_integer($value) && !is_array($value)){
-                $model->addError($attribute, 'Value can be string or integer or array');
-            }
-        });
-
         // Add validation rule for array size
         $model->addRule(['value'], ArrayValidator::class, ['maxSizeInBytes' => 1024 * 1024 * 2, 'when' => function($model){
             return is_array($model->value);
