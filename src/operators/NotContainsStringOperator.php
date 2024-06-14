@@ -49,7 +49,11 @@ class NotContainsStringOperator extends OperatorAbstract
         $searchValue = strval($searchValue);
         $value = strval($value);
 
-        return mb_strpos($value, $searchValue) === false;
+        // Escape special characters in $searchValue
+        $escapedSearchValue = preg_quote($searchValue, '/');
+
+        // Check if $searchValue is not found within $value using the regular expression without considering case sensitivity
+        return preg_match("/{$escapedSearchValue}/i", $value) !== 1;
     }
 
     public static function mongodbConditions($column, $searchValue) : array
