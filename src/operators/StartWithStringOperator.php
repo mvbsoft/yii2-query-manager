@@ -2,6 +2,7 @@
 
 namespace mvbsoft\queryManager\operators;
 
+use MongoDB\BSON\Regex;
 use mvbsoft\queryManager\OperatorAbstract;
 
 class StartWithStringOperator extends OperatorAbstract
@@ -56,10 +57,30 @@ class StartWithStringOperator extends OperatorAbstract
         return preg_match("/^{$escapedSearchValue}/i", $value) === 1;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to perform a case-insensitive pattern match for strings starting with a specified substring.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The substring to search for.
+     * @return array The condition array for MongoDB.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Initialize an empty condition array
+        $condition = [];
+
+        // Check if $searchValue is a scalar value
+        if (!is_scalar($searchValue)) {
+            return $condition; // Return empty condition if $searchValue is not scalar
+        }
+
+        // Convert $searchValue to a string
+        $searchValue = strval($searchValue);
+
+        // Construct the MongoDB condition for case-insensitive pattern match using regex
+        return [$column => new Regex("^" . preg_quote($searchValue, '/') . ".*", 'i')];
     }
+
 
     /**
      * Generate a condition array for the query builder to perform a case-insensitive pattern match.

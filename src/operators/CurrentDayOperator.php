@@ -3,7 +3,6 @@
 namespace mvbsoft\queryManager\operators;
 
 use Carbon\Carbon;
-use MongoDB\BSON\UTCDateTime;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
@@ -69,16 +68,19 @@ class CurrentDayOperator extends OperatorAbstract
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
+        // Get the start and end timestamps of the current day
         $start = Carbon::today()->startOfDay()->timestamp;
         $end = Carbon::today()->endOfDay()->timestamp;
 
+        // Construct the condition for MongoDB
         return [
             $column => [
-                '$gte' => new UTCDateTime($start * 1000),
-                '$lte' => new UTCDateTime($end * 1000),
-            ],
+                '$gte' => self::convertToMongoDate($start),
+                '$lte' => self::convertToMongoDate($end)
+            ]
         ];
     }
+
 
     /**
      * Generate a condition array for the query builder to match the current day.
@@ -89,9 +91,6 @@ class CurrentDayOperator extends OperatorAbstract
      */
     public static function postgresqlConditions(string $column, $searchValue = null): array
     {
-        return [
-            'and',
-            [new Expression("date($column) = current_date")]
-        ];
+        return [new Expression("date($column) = current_date")];
     }
 }

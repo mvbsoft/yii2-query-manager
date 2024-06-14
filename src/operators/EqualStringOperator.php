@@ -49,9 +49,26 @@ class EqualStringOperator extends OperatorAbstract
         return strval($searchValue) === strval($value);
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to match a string value.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The string value to search for.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue) : array
     {
-        return [];
+        // Check if $searchValue is a scalar value (string, number, or boolean)
+        if (!is_scalar($searchValue)) {
+            return [];
+        }
+
+        // Convert $searchValue to a string
+        $searchValue = strval($searchValue);
+
+        // Construct the condition for matching the string value in the column
+        // MongoDB query format is used here to match documents where the column value is equal to the search value
+        return [$column => $searchValue];
     }
 
     /**

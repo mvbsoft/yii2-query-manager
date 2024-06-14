@@ -3,7 +3,6 @@
 namespace mvbsoft\queryManager\operators;
 
 use Carbon\Carbon;
-use MongoDB\BSON\UTCDateTime;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
@@ -69,15 +68,15 @@ class CurrentMonthOperator extends OperatorAbstract
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        $currentYear = Carbon::now()->year;
-        $currentMonth = Carbon::now()->month;
-        $start = Carbon::create($currentYear, $currentMonth, 1, 0, 0, 0)->timestamp;
-        $end = Carbon::create($currentYear, $currentMonth, Carbon::now()->daysInMonth, 23, 59, 59)->timestamp;
+        // Calculate the start and end timestamps of the current month
+        $start = Carbon::now()->startOfMonth()->timestamp;
+        $end = Carbon::now()->endOfMonth()->timestamp;
 
+        // Construct the condition for MongoDB
         return [
             $column => [
-                '$gte' => new UTCDateTime($start * 1000),
-                '$lte' => new UTCDateTime($end * 1000),
+                '$gte' => self::convertToMongoDate($start),
+                '$lte' => self::convertToMongoDate($end),
             ],
         ];
     }

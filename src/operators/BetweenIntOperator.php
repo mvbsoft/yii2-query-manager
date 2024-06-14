@@ -40,36 +40,45 @@ class BetweenIntOperator extends OperatorAbstract
         // Get value from array
         $value = self::getValue($column, $data);
 
-        // Check if $searchValue is an array and has exactly two elements
-        if(
-            !is_array($searchValue) ||
-            !array_key_exists('from', $searchValue)||
-            !array_key_exists('to', $searchValue))
-        {
+        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+
+        if(empty($preparedSearchValue)){
             return false;
         }
-
-        // Get the start and end values of the range
-        $from = $searchValue['from'];
-        $to = $searchValue['to'];
 
         // Check if all values are numeric
-        if (!is_numeric($from) || !is_numeric($to) || !is_numeric($value)) {
+        if (!is_numeric($value)) {
             return false;
         }
 
-        // Convert values to integers
-        $fromInt = intval($from);
-        $toInt = intval($to);
         $value = intval($value);
 
         // Check if $value is between $fromInt and $toInt
-        return $value >= $fromInt && $value <= $toInt;
+        return $value >= $preparedSearchValue['from'] && $value <= $preparedSearchValue['to'];
     }
 
+    /**
+     * Constructs a condition for MongoDB database query to find records with a value in the specified column between two integers.
+     *
+     * @param string $column The column name in the database.
+     * @param mixed $searchValue An array containing two elements representing the start and end of the range.
+     * @return array The condition array for the query.
+     */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        return [];
+        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+
+        if(empty($preparedSearchValue)){
+            return [];
+        }
+
+        // Construct the condition for MongoDB
+        return [
+            $column => [
+                '$gte' => $preparedSearchValue['from'],
+                '$lte' => $preparedSearchValue['to']
+            ]
+        ];
     }
 
     /**
@@ -81,6 +90,18 @@ class BetweenIntOperator extends OperatorAbstract
      */
     public static function postgresqlConditions(string $column, $searchValue) : array
     {
+        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+
+        if(empty($preparedSearchValue)){
+            return [];
+        }
+
+        // Construct the condition for between two timestamps
+        return ['between', $column, $preparedSearchValue['from'], $preparedSearchValue['to']];
+    }
+
+    private static function _preparedSearchValue($searchValue): array
+    {
         // Check if $searchValue is an array and has exactly two elements
         if(
             !is_array($searchValue) ||
@@ -95,7 +116,7 @@ class BetweenIntOperator extends OperatorAbstract
         $to = $searchValue['to'];
 
         // Check if all values are numeric
-        if (!is_numeric($from) || !is_numeric($to) ) {
+        if (!is_numeric($from) || !is_numeric($to)) {
             return [];
         }
 
@@ -103,8 +124,10 @@ class BetweenIntOperator extends OperatorAbstract
         $fromInt = intval($from);
         $toInt = intval($to);
 
-        // Construct the condition for between two timestamps
-        return ['between', $column, $fromInt, $toInt];
+        return [
+            'from' => $fromInt,
+            'to' => $toInt
+        ];
     }
 
 }

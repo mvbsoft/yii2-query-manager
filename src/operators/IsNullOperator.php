@@ -44,9 +44,24 @@ class IsNullOperator extends OperatorAbstract
         return is_null($value);
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to check if a column is null or does not exist.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue Not used in this function.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Construct the condition for matching documents where the column value is null or the column does not exist
+        // $eq ensures the value is null
+        // $exists set to false ensures the field is not present in the document
+        return [
+            '$or' => [
+                [$column => ['$eq' => null]],
+                [$column => ['$exists' => false]]
+            ]
+        ];
     }
 
     /**

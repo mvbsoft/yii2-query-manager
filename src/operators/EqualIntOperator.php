@@ -49,9 +49,23 @@ class EqualIntOperator extends OperatorAbstract
         return intval($searchValue) === intval($value);
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to match an integer value.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The integer value to search for.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue) : array
     {
-        return [];
+        // Check if $searchValue is numeric
+        if (!is_numeric($searchValue)) {
+            return [];
+        }
+
+        // Construct the condition for matching the integer value in the column
+        // MongoDB query format is used here to match documents where the column value is equal to the search value
+        return [$column => intval($searchValue)];
     }
 
     /**

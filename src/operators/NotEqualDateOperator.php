@@ -61,7 +61,17 @@ class NotEqualDateOperator extends OperatorAbstract
 
     public static function mongodbConditions($column, $searchValue) : array
     {
-        return [];
+        // Convert $searchValue to a timestamp
+        $searchTimestamp = self::convertToMongoDate($searchValue);
+
+        // Check if $searchValue couldn't be converted to a timestamp
+        if (is_null($searchTimestamp)) {
+            return [];
+        }
+
+        return [
+            $column => ['$ne' => $searchTimestamp]
+        ];
     }
 
     /**
@@ -85,7 +95,7 @@ class NotEqualDateOperator extends OperatorAbstract
         $searchDate = Carbon::createFromTimestamp($searchTimestamp)->toDateString();
 
         // Construct the condition for comparing the date in the column with the specified date
-        return [new Expression("$column::date != :searchDate", [':searchDate' => $searchDate])];
+        return [new Expression("$column::date != $searchDate")];
     }
 
 }

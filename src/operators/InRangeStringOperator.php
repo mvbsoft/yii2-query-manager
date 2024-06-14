@@ -72,10 +72,43 @@ class InRangeStringOperator extends OperatorAbstract
         return false; // If no match found, return false
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to match an array of string values.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The array of values to search for.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is an array
+        if (!is_array($searchValue)) {
+            return [];
+        }
+
+        $searchValueStrings = [];
+
+        // Iterate through each item in $searchValue
+        foreach ($searchValue as $item) {
+            // Skip non-scalar items
+            if (!is_scalar($item)) {
+                continue; // Move to the next iteration
+            }
+
+            // Convert the item to a string
+            $searchValueStrings[] = strval($item);
+        }
+
+        // If there are no valid scalar values in the array, return an empty array
+        if (empty($searchValueStrings)) {
+            return [];
+        }
+
+        // Construct the condition for matching the array of string values in the column
+        // MongoDB query format is used here to match documents where the column value is in the searchValueStrings array
+        return [$column => ['$in' => $searchValueStrings]];
     }
+
 
     /**
      * Generate a condition array for the query builder to match an array of string values in Postgres.

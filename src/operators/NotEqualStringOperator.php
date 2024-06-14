@@ -49,10 +49,27 @@ class NotEqualStringOperator extends OperatorAbstract
         return strval($searchValue) !== strval($value);
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to match a scalar value.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The scalar value to search for (string, number, or boolean).
+     * @return array The condition array for MongoDB.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Initialize an empty condition array
+        $condition = [];
+
+        // Check if $searchValue is a scalar value (string, number, or boolean)
+        if (!is_scalar($searchValue)) {
+            return $condition; // Return empty condition if $searchValue is not scalar
+        }
+
+        // Build the MongoDB condition to check for inequality
+        return [$column => ['$ne' => $searchValue]];
     }
+
 
     /**
      * Generate a condition array for the query builder to match a scalar value in Postgres.

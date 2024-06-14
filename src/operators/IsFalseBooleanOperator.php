@@ -49,10 +49,20 @@ class IsFalseBooleanOperator extends OperatorAbstract
         return boolval($value) === false;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to match a boolean value that is false.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue Not used in this function.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Construct the condition for matching documents where the column value is false
+        // MongoDB query format is used here to match documents where the column value is false
+        return [$column => false];
     }
+
 
     /**
      * Generate a condition array for the query builder to match a boolean value in Postgres.

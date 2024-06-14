@@ -56,9 +56,30 @@ class ContainsStringOperator extends OperatorAbstract
         return preg_match("/{$escapedSearchValue}/i", $value) === 1;
     }
 
+    /**
+     * Constructs a condition for MongoDB database query to find records where the specified column contains the search value as a substring.
+     *
+     * @param string $column The column name in the database.
+     * @param mixed $searchValue The value to search for within the column.
+     * @return array The condition array for the query.
+     */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        return [];
+        // Check if $searchValue is a scalar value
+        if (!is_scalar($searchValue)) {
+            return [];
+        }
+
+        // Convert $searchValue to a string
+        $searchValue = strval($searchValue);
+
+        // Construct the condition for MongoDB using a case-insensitive regex search
+        return [
+            $column => [
+                '$regex' => $searchValue,
+                '$options' => 'i' // Case-insensitive option
+            ]
+        ];
     }
 
     /**

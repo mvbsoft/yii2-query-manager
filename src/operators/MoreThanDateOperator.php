@@ -54,9 +54,27 @@ class MoreThanDateOperator extends OperatorAbstract
         return $value > $searchValue;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to check if a column value is greater than the specified date value.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The search value to compare against (can be a timestamp or any format convertible to a timestamp).
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Convert $searchValue to a timestamp in milliseconds if possible
+        $timestampMilliseconds = self::convertToMongoDate($searchValue);
+
+        // Check if $searchValue couldn't be converted to a timestamp
+        if (is_null($timestampMilliseconds)) {
+            return [];
+        }
+
+        // Construct the condition for MongoDB to check if the column value is greater than the specified timestamp
+        return [
+            $column => ['$gt' => $timestampMilliseconds]
+        ];
     }
 
     /**

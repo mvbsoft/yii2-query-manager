@@ -49,9 +49,17 @@ class IsTrueBooleanOperator extends OperatorAbstract
         return boolval($value) === true;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to check if a column is true.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue Not used in this function.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Construct the condition for matching documents where the column value is true
+        return [$column => true];
     }
 
     /**

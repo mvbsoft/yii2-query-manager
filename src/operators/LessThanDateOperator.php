@@ -55,10 +55,22 @@ class LessThanDateOperator extends OperatorAbstract
         return $value < $searchValue;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to check if a column value is less than the specified date.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The search value to compare against (should be a date or a format convertible to a date).
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Convert $searchValue to a MongoDB compatible date format (UTC datetime)
+        $searchDate = self::convertToMongoDate($searchValue);
+
+        // Construct the condition for matching documents where the column value is less than the specified date
+        return [$column => ['$lt' => $searchDate]];
     }
+
 
     /**
      * Generate a condition array for the query builder to match timestamps in Postgres.

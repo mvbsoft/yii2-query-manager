@@ -49,9 +49,24 @@ class LessThanIntOperator extends OperatorAbstract
         return intval($value) < intval($searchValue);
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to check if a column value is less than the specified numeric value.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The search value to compare against (should be numeric).
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is numeric
+        if (!is_numeric($searchValue)) {
+            return [];
+        }
+
+        // Construct the condition for matching documents where the column value is less than the specified numeric value
+        return [
+            $column => ['$lt' => intval($searchValue)]
+        ];
     }
 
     /**

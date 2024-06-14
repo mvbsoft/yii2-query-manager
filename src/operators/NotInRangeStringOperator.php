@@ -72,10 +72,45 @@ class NotInRangeStringOperator extends OperatorAbstract
         return true; // If no match is found, return true
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to exclude an array of string values.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The array of string values to exclude.
+     * @return array The condition array for MongoDB.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Initialize an empty condition array
+        $condition = [];
+
+        // Check if $searchValue is an array
+        if (!is_array($searchValue)) {
+            return $condition; // Return empty condition if $searchValue is not an array
+        }
+
+        $searchStringValues = [];
+
+        // Iterate through each item in $searchValue
+        foreach ($searchValue as $item) {
+            // Skip non-scalar items
+            if (!is_scalar($item)) {
+                continue;
+            }
+
+            // Convert the item to a string and add to $searchStringValues
+            $searchStringValues[] = strval($item);
+        }
+
+        // If there are no valid string values in the array, return an empty array
+        if (empty($searchStringValues)) {
+            return $condition;
+        }
+
+        // Build the MongoDB condition to exclude the array of string values using $nin operator
+        return [$column => ['$nin' => $searchStringValues]];
     }
+
 
     /**
      * Generate a condition array for the query builder to match an array of string values in Postgres.

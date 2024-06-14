@@ -53,9 +53,24 @@ class NotEqualIntOperator extends OperatorAbstract
         return $searchValueInt !== $valueInt;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to match an integer value.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The integer value to search for.
+     * @return array The condition array for the MongoDB query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is numeric
+        if (!is_numeric($searchValue)) {
+            return [];
+        }
+
+        // Construct the condition for matching the integer value in the column
+        return [
+            $column => ['$ne' => intval($searchValue)]
+        ];
     }
 
     /**

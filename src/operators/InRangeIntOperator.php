@@ -72,9 +72,43 @@ class InRangeIntOperator extends OperatorAbstract
         return false;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to match an array of integer values.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The array of values to search for.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is an array
+        if (!is_array($searchValue)) {
+            return [];
+        }
+
+        $searchIntValues = [];
+
+        // Iterate through each item in $searchValue
+        foreach ($searchValue as $item) {
+            // Skip non-numeric items
+            if (!is_numeric($item)) {
+                continue;
+            }
+
+            // Convert the item to an integer
+            $searchIntValues[] = intval($item);
+        }
+
+        // If there are no valid numeric values in the array, return an empty array
+        if (empty($searchIntValues)) {
+            return [];
+        }
+
+        // Construct the condition for matching the array of integers in the column
+        // MongoDB query format is used here to match documents where the column value is in the searchIntValues array
+        return [
+            $column => ['$in' => $searchIntValues]
+        ];
     }
 
     /**

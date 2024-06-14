@@ -53,9 +53,24 @@ class MoreThanIntOperator extends OperatorAbstract
         return $valueInt > $searchValueInt;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to check if a column value is greater than the specified numeric value.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The search value to compare against (numeric).
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is numeric
+        if (!is_numeric($searchValue)) {
+            return [];
+        }
+
+        // Construct the condition for MongoDB to check if the column value is greater than the specified numeric value
+        return [
+            $column => ['$gt' => intval($searchValue)]
+        ];
     }
 
     /**

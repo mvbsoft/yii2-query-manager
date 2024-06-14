@@ -2,6 +2,7 @@
 
 namespace mvbsoft\queryManager\operators;
 
+use MongoDB\BSON\Regex;
 use mvbsoft\queryManager\OperatorAbstract;
 
 class NotContainsStringOperator extends OperatorAbstract
@@ -56,10 +57,31 @@ class NotContainsStringOperator extends OperatorAbstract
         return preg_match("/{$escapedSearchValue}/i", $value) !== 1;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to perform a case-insensitive pattern match.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The value to search for.
+     * @return array The condition array for MongoDB.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is a scalar value
+        if (!is_scalar($searchValue)) {
+            return [];
+        }
+
+        // Convert $searchValue to a string
+        $searchValue = strval($searchValue);
+
+        // Construct the MongoDB condition for case-insensitive pattern match using $not and $regex
+        return [
+            $column => [
+                '$not' => new Regex($searchValue, 'i')
+            ]
+        ];
     }
+
 
     /**
      * Generate a condition array for the query builder to perform a case-insensitive pattern match.

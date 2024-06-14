@@ -2,6 +2,7 @@
 
 namespace mvbsoft\queryManager;
 
+use MongoDB\BSON\UTCDateTime;
 use yii\base\BaseObject;
 
 /**
@@ -157,20 +158,38 @@ abstract class OperatorAbstract extends BaseObject
     {
         // Check if $date is already numeric
         if(is_numeric($date)){
-            $date = intval($date);
+            return intval($date);
         }
 
         // Check if $date is a string and convert it to a timestamp
         if(is_string($date)){
-            $date = strtotime($date);
+            $timestamp = strtotime($date);
+
+            if($timestamp === false){
+                return null;
+            }
+
+            return $timestamp;
         }
 
-        // Check if $date is not an integer, set it to null
-        if(!is_integer($date)){
-            $date = null;
+        return null;
+    }
+
+    /**
+     * Convert a date or timestamp to a UNIX timestamp for mongodb.
+     *
+     * @param mixed $date The date or timestamp to convert.
+     * @return UTCDateTime|null
+     */
+    public static function convertToMongoDate($date): ?UTCDateTime
+    {
+        $timestamp = self::convertToTimestamp($date);
+
+        if(is_null($timestamp)){
+            return null;
         }
 
-        return $date;
+        return new UTCDateTime($timestamp * 1000);
     }
 
 }

@@ -2,7 +2,6 @@
 
 namespace mvbsoft\queryManager\operators;
 
-use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
@@ -38,36 +37,54 @@ class BetweenDateOperator extends OperatorAbstract
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $preparedSearchValue = self::_preparedSearchValue($searchValue);
 
-        // Check if $searchValue is an array with exactly two elements
-        if(
-            !is_array($searchValue) ||
-            !array_key_exists('from', $searchValue)||
-            !array_key_exists('to', $searchValue))
-        {
+        if(empty($preparedSearchValue)){
             return false;
         }
 
-        // Convert start and end timestamps to Unix timestamp format
-        $fromDate = self::convertToTimestamp($searchValue['from']);
-        $toDate   = self::convertToTimestamp($searchValue['to']);
-        $value    = self::convertToTimestamp($value);
+        // Get value from array
+        $value = self::getValue($column, $data);
+
+        $valueTimestamp = self::convertToTimestamp($value);
 
         // Check if any of the timestamps couldn't be converted
-        if(is_null($fromDate) || is_null($toDate) || is_null($value)){
+        if(is_null($valueTimestamp)){
             return false; // If any timestamp is invalid, return false
         }
 
+        // Convert start and end timestamps to Unix timestamp format
+        $fromDate = $preparedSearchValue['from'];
+        $toDate   = $preparedSearchValue['to'];
+
         // Check if the value falls within the specified range
-        return $value >= $fromDate && $value <= $toDate;
+        return $valueTimestamp >= $fromDate && $valueTimestamp <= $toDate;
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Constructs a condition for MongoDB database query to find records with a value in the specified column between two timestamps.
+     *
+     * @param string $column The column name in the database.
+     * @param mixed $searchValue An array containing two elements representing the start and end timestamps of the range.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue) : array
     {
-        return [];
+        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+
+        if(empty($preparedSearchValue)){
+            return [];
+        }
+
+        // Construct the condition for MongoDB
+        return [
+            $column => [
+                '$gte' => self::convertToMongoDate($preparedSearchValue['from']),
+                '$lte' => self::convertToMongoDate($preparedSearchValue['to'])
+            ]
+        ];
     }
+
 
     /**
      * Constructs a condition for PostgreSQL database query to find records with a value in the specified column between two timestamps.
@@ -78,6 +95,22 @@ class BetweenDateOperator extends OperatorAbstract
      */
     public static function postgresqlConditions(string $column, $searchValue) : array
     {
+        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+
+        if(empty($preparedSearchValue)){
+            return [];
+        }
+
+        // Convert start and end timestamps to Unix timestamp format
+        $fromDate = $preparedSearchValue['from'];
+        $toDate   = $preparedSearchValue['to'];
+
+        // Construct the condition for between two timestamps
+        return ['between', $column, new Expression("to_timestamp($fromDate)"), new Expression("to_timestamp($toDate)")];
+    }
+
+    private static function _preparedSearchValue($searchValue): array
+    {
         // Check if $searchValue is an array with exactly two elements
         if(
             !is_array($searchValue) ||
@@ -87,12 +120,19 @@ class BetweenDateOperator extends OperatorAbstract
             return [];
         }
 
-        // Convert start and end timestamps to Unix timestamp format
         $fromDate = self::convertToTimestamp($searchValue['from']);
         $toDate   = self::convertToTimestamp($searchValue['to']);
 
-        // Construct the condition for between two timestamps
-        return ['between', $column, new Expression("to_timestamp($fromDate)"), new Expression("to_timestamp($toDate)")];
+        // Check if any of the timestamps couldn't be converted
+        if(is_null($fromDate) || is_null($toDate)){
+            return []; // If any timestamp is invalid, return an empty array
+        }
+
+        // Convert start and end timestamps to Unix timestamp format and return
+        return [
+            'fromDate' => $fromDate,
+            'toDate'   => $toDate
+        ];
     }
 
 }

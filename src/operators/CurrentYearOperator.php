@@ -3,7 +3,6 @@
 namespace mvbsoft\queryManager\operators;
 
 use Carbon\Carbon;
-use MongoDB\BSON\UTCDateTime;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
@@ -69,15 +68,15 @@ class CurrentYearOperator extends OperatorAbstract
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        $currentYear = Carbon::now()->year;
+        // Calculate the start and end timestamps of the current year
+        $start = Carbon::now()->startOfYear()->timestamp;
+        $end = Carbon::now()->endOfYear()->timestamp;
 
-        $start = Carbon::create($currentYear, 1, 1, 0, 0, 0)->timestamp;
-        $end = Carbon::create($currentYear, 12, 31, 23, 59, 59)->timestamp;
-
+        // Construct the condition for MongoDB
         return [
             $column => [
-                '$gte' => new UTCDateTime($start * 1000),
-                '$lte' => new UTCDateTime($end * 1000),
+                '$gte' => self::convertToMongoDate($start),
+                '$lte' => self::convertToMongoDate($end)
             ],
         ];
     }
@@ -91,9 +90,6 @@ class CurrentYearOperator extends OperatorAbstract
      */
     public static function postgresqlConditions(string $column, $searchValue = null): array
     {
-        return [
-            "AND",
-            [ new Expression("date_part('year', $column) = date_part('year', current_date)")]
-        ];
+        return [new Expression("date_part('year', $column) = date_part('year', current_date)")];
     }
 }

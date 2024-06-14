@@ -2,6 +2,7 @@
 
 namespace mvbsoft\queryManager\operators;
 
+use MongoDB\BSON\Regex;
 use mvbsoft\queryManager\OperatorAbstract;
 
 class EndWithStringOperator extends OperatorAbstract
@@ -56,9 +57,30 @@ class EndWithStringOperator extends OperatorAbstract
         return preg_match("/{$escapedSearchValue}$/i", $value) === 1;
     }
 
-    public static function mongodbConditions(string $column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to perform a case-insensitive pattern match to check if a string ends with a specified substring.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The value to search for.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Check if $searchValue is a scalar value
+        if (!is_scalar($searchValue)) {
+            return [];
+        }
+
+        // Convert $searchValue to a string
+        $searchValue = strval($searchValue);
+
+        // Construct MongoDB regex pattern for case-insensitive match at the end of the string
+        $regexPattern = new Regex("$searchValue$", 'i');
+
+        // Return MongoDB query condition
+        return [
+            $column => $regexPattern
+        ];
     }
 
     /**

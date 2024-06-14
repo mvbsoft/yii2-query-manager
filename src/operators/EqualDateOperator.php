@@ -59,9 +59,34 @@ class EqualDateOperator extends OperatorAbstract
         return $searchValue->isSameDay($value);
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to match a specific date.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The value to search for.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
+        // Convert $searchValue to a timestamp
+        $searchTimestamp = self::convertToTimestamp($searchValue);
+
+        // Check if $searchValue couldn't be converted to a timestamp
+        if (is_null($searchTimestamp)) {
+            return [];
+        }
+
+        // Calculate start and end of the search day in UTC
+        $startOfDay = Carbon::createFromTimestamp($searchTimestamp)->startOfDay()->timestamp;
+        $endOfDay = Carbon::createFromTimestamp($searchTimestamp)->endOfDay()->timestamp;
+
+        // Return MongoDB query condition
+        return [
+            $column => [
+                '$gte' => self::convertToMongoDate($startOfDay),
+                '$lte' => self::convertToMongoDate($endOfDay)
+            ]
+        ];
     }
 
     /**
@@ -85,7 +110,7 @@ class EqualDateOperator extends OperatorAbstract
         $searchDate = Carbon::createFromTimestamp($searchTimestamp)->toDateString();
 
         // Construct the condition for comparing the date in the column with the specified date
-        return [new Expression("$column::date = :searchDate", [':searchDate' => $searchDate])];
+        return [new Expression("$column::date = $searchDate")];
     }
 
 }

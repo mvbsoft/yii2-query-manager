@@ -72,11 +72,44 @@ class NotInRangeIntOperator extends OperatorAbstract
         return true; // Value not found in array, return true
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB to exclude an array of integer values.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The array of integer values to exclude.
+     * @return array The condition array for MongoDB.
+     */
+    public static function mongodbConditions(string $column, $searchValue): array
     {
-        return [];
-    }
+        // Initialize an empty condition array
+        $condition = [];
 
+        // Check if $searchValue is an array
+        if (!is_array($searchValue)) {
+            return $condition; // Return empty condition if $searchValue is not an array
+        }
+
+        $searchIntValues = [];
+
+        // Iterate through each item in $searchValue
+        foreach ($searchValue as $item) {
+            // Skip non-numeric items
+            if (!is_numeric($item)) {
+                continue;
+            }
+
+            // Convert the item to an integer and add to $searchIntValues
+            $searchIntValues[] = intval($item);
+        }
+
+        // If there are no valid numeric values in the array, return an empty array
+        if (empty($searchIntValues)) {
+            return $condition;
+        }
+
+        // Build the MongoDB condition to exclude the array of integers using $nin operator
+        return [$column => ['$nin' => $searchIntValues]];
+    }
     /**
      * Generate a condition array for the query builder to match an array of integers in Postgres.
      *
@@ -91,7 +124,7 @@ class NotInRangeIntOperator extends OperatorAbstract
             return [];
         }
 
-        $searchValueInts = [];
+        $searchIntValues = [];
 
         // Iterate through each item in $searchValue
         foreach ($searchValue as $item) {
@@ -101,16 +134,16 @@ class NotInRangeIntOperator extends OperatorAbstract
             }
 
             // Convert the item to an integer
-            $searchValueInts[] = intval($item);
+            $searchIntValues[] = intval($item);
         }
 
         // If there are no valid numeric values in the array, return an empty array
-        if (empty($searchValueInts)) {
+        if (empty($searchIntValues)) {
             return [];
         }
 
         // Construct the condition for matching the array of integers in the column
-        return ["NOT IN", $column, $searchValueInts];
+        return ["NOT IN", $column, $searchIntValues];
     }
 
 }
