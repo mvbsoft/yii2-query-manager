@@ -68,7 +68,7 @@ class EqualStringOperator extends OperatorAbstract
 
         // Construct the condition for matching the string value in the column
         // MongoDB query format is used here to match documents where the column value is equal to the search value
-        return [$column => $searchValue];
+        return [$column => ['$eq' => $searchValue]];
     }
 
     /**

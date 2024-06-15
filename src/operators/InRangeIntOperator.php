@@ -106,9 +106,7 @@ class InRangeIntOperator extends OperatorAbstract
 
         // Construct the condition for matching the array of integers in the column
         // MongoDB query format is used here to match documents where the column value is in the searchIntValues array
-        return [
-            $column => ['$in' => $searchIntValues]
-        ];
+        return [$column => ['$in' => $searchIntValues]];
     }
 
     /**
