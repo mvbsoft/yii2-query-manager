@@ -77,10 +77,14 @@ class StartWithStringOperator extends OperatorAbstract
         // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
-        // Construct the MongoDB condition for case-insensitive pattern match using regex
-        return [$column => new Regex("^" . preg_quote($searchValue, '/') . ".*", 'i')];
-    }
+        $escapedSearchValue = preg_quote($searchValue, '/');
 
+        // Construct the MongoDB condition for case-insensitive pattern match using regex
+        return [$column => [
+            '$regex' => "^" . $escapedSearchValue,
+            '$options' => 'i'
+        ]];
+    }
 
     /**
      * Generate a condition array for the query builder to perform a case-insensitive pattern match.

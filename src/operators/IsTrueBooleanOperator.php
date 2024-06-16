@@ -59,7 +59,7 @@ class IsTrueBooleanOperator extends OperatorAbstract
     public static function mongodbConditions(string $column, $searchValue): array
     {
         // Construct the condition for matching documents where the column value is true
-        return [$column => true];
+        return [$column => ['$eq' => true]];
     }
 
     /**

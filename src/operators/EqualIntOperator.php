@@ -65,7 +65,7 @@ class EqualIntOperator extends OperatorAbstract
 
         // Construct the condition for matching the integer value in the column
         // MongoDB query format is used here to match documents where the column value is equal to the search value
-        return [$column => intval($searchValue)];
+        return [$column => ['$eq' => intval($searchValue)]];
     }
 
     /**

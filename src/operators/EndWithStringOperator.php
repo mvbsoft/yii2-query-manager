@@ -74,12 +74,14 @@ class EndWithStringOperator extends OperatorAbstract
         // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
-        // Construct MongoDB regex pattern for case-insensitive match at the end of the string
-        $regexPattern = new Regex("$searchValue$", 'i');
+        $escapedSearchValue = preg_quote($searchValue, '/');
 
         // Return MongoDB query condition
         return [
-            $column => $regexPattern
+            $column => [
+                '$regex' => $escapedSearchValue . "$",
+                '$options' => 'i'
+            ]
         ];
     }
 

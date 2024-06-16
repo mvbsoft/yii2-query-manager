@@ -73,10 +73,13 @@ class ContainsStringOperator extends OperatorAbstract
         // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
+        // Escape special characters
+        $escapedSearchValue = preg_quote($searchValue, '/');
+
         // Construct the condition for MongoDB using a case-insensitive regex search
         return [
             $column => [
-                '$regex' => $searchValue,
+                '$regex' => $escapedSearchValue,
                 '$options' => 'i' // Case-insensitive option
             ]
         ];
