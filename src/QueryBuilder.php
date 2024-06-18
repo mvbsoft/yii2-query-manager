@@ -443,7 +443,7 @@ class QueryBuilder extends Component {
      * @param array $queryElements The array of query elements.
      * @return MongodbQuery The generated MongoDB query.
      */
-    public function mongodbQuery(array $queryElements): MongodbQuery
+    public function mongodbQuery(array $queryElements = []): MongodbQuery
     {
         return $this->generateConditions($queryElements,  self::CONDITIONS_TYPE_MONGODB);
     }
@@ -454,7 +454,7 @@ class QueryBuilder extends Component {
      * @param array $queryElements The array of query elements.
      * @return PostgresqlQuery The generated PostgreSQL query.
      */
-    public function postgresqlQuery(array $queryElements): PostgresqlQuery
+    public function postgresqlQuery(array $queryElements = []): PostgresqlQuery
     {
         return $this->generateConditions($queryElements,  self::CONDITIONS_TYPE_POSTGRESQL);
     }
