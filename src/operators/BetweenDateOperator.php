@@ -130,8 +130,8 @@ class BetweenDateOperator extends OperatorAbstract
 
         // Convert start and end timestamps to Unix timestamp format and return
         return [
-            'fromDate' => $fromDate,
-            'toDate'   => $toDate
+            'from' => $fromDate,
+            'to'   => $toDate
         ];
     }
 
