@@ -74,7 +74,7 @@ class IsNotNullOperator extends OperatorAbstract
     public static function postgresqlConditions(string $column, $searchValue = null): array
     {
         // Construct a condition array to check if the specified column is neither null nor an empty string
-        return ["AND", ["IS NOT", $column, null], ["!=", $column, ''], ];
+        return ["AND", ["IS NOT", $column, null], ["!=", $column, '']];
     }
 
 }

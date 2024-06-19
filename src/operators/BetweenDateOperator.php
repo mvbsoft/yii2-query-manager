@@ -2,6 +2,7 @@
 
 namespace mvbsoft\queryManager\operators;
 
+use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
@@ -127,6 +128,9 @@ class BetweenDateOperator extends OperatorAbstract
         if(is_null($fromDate) || is_null($toDate)){
             return []; // If any timestamp is invalid, return an empty array
         }
+
+        $fromDate = Carbon::createFromTimestamp($fromDate)->startOfDay()->timestamp;
+        $toDate = Carbon::createFromTimestamp($toDate)->endOfDay()->timestamp;
 
         // Convert start and end timestamps to Unix timestamp format and return
         return [
