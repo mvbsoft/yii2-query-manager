@@ -129,9 +129,6 @@ class BetweenDateOperator extends OperatorAbstract
             return []; // If any timestamp is invalid, return an empty array
         }
 
-        $fromDate = Carbon::createFromTimestamp($fromDate)->startOfDay()->timestamp;
-        $toDate = Carbon::createFromTimestamp($toDate)->endOfDay()->timestamp;
-
         // Convert start and end timestamps to Unix timestamp format and return
         return [
             'from' => $fromDate,
