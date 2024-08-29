@@ -24,7 +24,7 @@ class ContainsStringOperator extends OperatorAbstract
 
     public static function description(): string
     {
-        return 'Contains';
+        return 'Contains String';
     }
 
     /**

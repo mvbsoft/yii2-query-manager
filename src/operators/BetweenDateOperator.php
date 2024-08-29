@@ -2,7 +2,6 @@
 
 namespace mvbsoft\queryManager\operators;
 
-use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
@@ -25,7 +24,7 @@ class BetweenDateOperator extends OperatorAbstract
 
     public static function description(): string
     {
-        return 'Between';
+        return 'Between Date';
     }
 
     /**

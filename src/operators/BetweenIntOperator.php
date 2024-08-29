@@ -24,7 +24,7 @@ class BetweenIntOperator extends OperatorAbstract
 
     public static function description(): string
     {
-        return 'Contains';
+        return 'Between Integer';
     }
 
     /**
