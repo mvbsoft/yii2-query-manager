@@ -56,7 +56,7 @@ class IsTrueBooleanOperator extends OperatorAbstract
      * @param mixed $searchValue Not used in this function.
      * @return array The condition array for the query.
      */
-    public static function mongodbConditions(string $column, $searchValue): array
+    public static function mongodbConditions(string $column, $searchValue = null): array
     {
         // Construct the condition for matching documents where the column value is true
         return [$column => ['$eq' => true]];
