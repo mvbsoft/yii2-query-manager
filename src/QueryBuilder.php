@@ -335,7 +335,6 @@ class QueryBuilder extends Component {
      * @param string $conditionsType The condition type (php, mongodb, postgresql).
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return PostgresqlQuery|MongodbQuery The generated query.
-     * @throws QueryBuilderException
      */
     public function generateConditions(array $queryElements, string $conditionsType, array $data = [])
     {
@@ -349,79 +348,53 @@ class QueryBuilder extends Component {
 
         // Iterate over query elements to generate conditions
         foreach ($queryElements as $element){
-            $type       = $element['type'] ?? null;
-            $options    = $element['options'] ?? [];
-            $condition  = $element['condition'] ?? null;
-
-            if(!is_array($options)){
-                throw new QueryBuilderException("Individual Query array element 'options' should be an array");
-            }
-
-            if(empty($type) || empty($condition)){
-                throw new QueryBuilderException("Query array element require 'type' and 'condition");
-            }
+            $type           = $element['type'];
+            $condition      = $element['condition'];
 
             // Handle individual elements
             if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
-                $column      = $element['column'] ?? null;
-                $operator    = $element['operator'] ?? null;
-                $searchValue = $element['value'] ?? null;
-
-                if(empty($column) || empty($operator)){
-                    throw new QueryBuilderException("Individual Query array element require 'column' and 'operator'");
-                }
+                $column      = $element['column'];
+                $operator    = $element['operator'];
+                $searchValue = $element['value'];
 
                 $where = $this->generateWhere($operator, $conditionsType, $searchValue, $column, $data);
 
-                if(is_null($where)){
-                    continue;
-                }
-
-                if($condition == self::OR){
+                if($condition == self::OR && !is_null($where)){
                     $query->orWhere($where);
                 }
 
-                if($condition == self::AND){
+                if($condition == self::AND && !is_null($where)){
                     $query->andWhere($where);
                 }
             }
 
-            // Handle group elements or event elements
-            if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP || $type == self::CONDITIONS_ELEMENT_TYPE_EVENT)
-            {
-                $groupElements = $element['elements'] ?? [];
-
-                if(empty($column) || empty($operator)){
-                    throw new QueryBuilderException("The 'elements' key in the '$type' query condition type should be a non-empty array.");
-                }
+            // Handle group elements
+            if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
+                $groupElements = $element['elements'];
 
                 $groupQuery = $this->generateConditions($groupElements, $conditionsType, $data);
 
-                $where = $groupQuery->where;
-
-                if(empty($where)){
-                    continue;
+                if($condition == self::OR && !empty($groupQuery->where)){
+                    $query->orWhere($groupQuery->where);
                 }
 
-                if($conditionsType == self::CONDITIONS_TYPE_MONGODB){
-                    $elemMatch = $options['elemMatch'] ?? false;
-                    $elemColumn = $options['elemColumn'] ?? null;
+                if($condition == self::AND && !empty($groupQuery->where)){
+                    $query->andWhere($groupQuery->where);
+                }
+            }
 
-                    if($elemMatch && empty($elemColumn)){
-                        throw new QueryBuilderException("In a MongoDB query, the 'elemColumn' key must not be empty or null when 'elemMatch' is set to true.");
-                    }
+            // Handle event elements
+            if($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
+                $eventElements = $element['elements'];
 
-                    if($elemMatch){
-                        $where = [$elemColumn => ['$elemMatch' => $where]];
-                    }
+                $eventQuery = $this->generateConditions($eventElements, $conditionsType, $data);
+
+                if($condition == self::OR && !empty($eventQuery->where)){
+                    $query->orWhere($eventQuery->where);
                 }
 
-                if($condition == self::OR){
-                    $query->orWhere($where);
-                }
-
-                if($condition == self::AND){
-                    $query->andWhere($where);
+                if($condition == self::AND && !empty($eventQuery->where)){
+                    $query->andWhere($eventQuery->where);
                 }
             }
         }
@@ -435,7 +408,6 @@ class QueryBuilder extends Component {
      * @param array $queryElements The array of query elements.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool The result of the PHP query execution.
-     * @throws QueryBuilderException
      */
     public function phpQuery(array $queryElements, array $data): bool
     {
@@ -470,7 +442,6 @@ class QueryBuilder extends Component {
      *
      * @param array $queryElements The array of query elements.
      * @return MongodbQuery The generated MongoDB query.
-     * @throws QueryBuilderException
      */
     public function mongodbQuery(array $queryElements = []): MongodbQuery
     {
@@ -482,7 +453,6 @@ class QueryBuilder extends Component {
      *
      * @param array $queryElements The array of query elements.
      * @return PostgresqlQuery The generated PostgreSQL query.
-     * @throws QueryBuilderException
      */
     public function postgresqlQuery(array $queryElements = []): PostgresqlQuery
     {
