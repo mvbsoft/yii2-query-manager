@@ -65,6 +65,10 @@ class DaysOfWeekOperator extends OperatorAbstract
             return [];
         }
 
+        foreach ($preparedSearchValue as $key => $value){
+            $preparedSearchValue[$key] = ++$value;
+        }
+
         return [
             '$expr' => [
                 '$in' => [
