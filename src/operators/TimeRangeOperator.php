@@ -82,16 +82,10 @@ class TimeRangeOperator extends OperatorAbstract
                     [
                         '$gte' => [
                             [
-                                '$subtract' => [
-                                    ['$toLong' => '$_created_at'],
-                                    [
-                                        '$toLong' => [
-                                            '$dateTrunc' => [
-                                                'date' => '$' . $column,
-                                                'unit' => 'day'
-                                            ]
-                                        ]
-                                    ]
+                                '$add' => [
+                                    ['$multiply' => [['$hour' => '$' . $column], 3600]],
+                                    ['$multiply' => [['$minute' => '$' . $column], 60]],
+                                    ['$second' => '$' . $column]
                                 ]
                             ],
                             $fromDate
@@ -100,16 +94,10 @@ class TimeRangeOperator extends OperatorAbstract
                     [
                         '$lte' => [
                             [
-                                '$subtract' => [
-                                    ['$toLong' => '$_created_at'],
-                                    [
-                                        '$toLong' => [
-                                            '$dateTrunc' => [
-                                                'date' => '$' . $column,
-                                                'unit' => 'day'
-                                            ]
-                                        ]
-                                    ]
+                                '$add' => [
+                                    ['$multiply' => [['$hour' => '$' . $column], 3600]],
+                                    ['$multiply' => [['$minute' => '$' . $column], 60]],
+                                    ['$second' => '$' . $column]
                                 ]
                             ],
                             $toDate
