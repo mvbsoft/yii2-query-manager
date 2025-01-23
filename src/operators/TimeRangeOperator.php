@@ -75,37 +75,71 @@ class TimeRangeOperator extends OperatorAbstract
         $fromDate = $preparedSearchValue['from'];
         $toDate   = $preparedSearchValue['to'];
 
-        // Construct and return the MongoDB query condition for the specified time range
-        return [
-            '$expr' => [
-                '$and' => [
-                    [
-                        '$gte' => [
-                            [
-                                '$add' => [
-                                    ['$multiply' => [['$hour' => '$' . $column], 3600]],
-                                    ['$multiply' => [['$minute' => '$' . $column], 60]],
-                                    ['$second' => '$' . $column]
-                                ]
-                            ],
-                            $fromDate
-                        ]
-                    ],
-                    [
-                        '$lte' => [
-                            [
-                                '$add' => [
-                                    ['$multiply' => [['$hour' => '$' . $column], 3600]],
-                                    ['$multiply' => [['$minute' => '$' . $column], 60]],
-                                    ['$second' => '$' . $column]
-                                ]
-                            ],
-                            $toDate
+        $getBaseCondition = function(int $seconds, string $column){
+            return [
+                [
+                    '$add' => [
+                        ['$multiply' => [['$hour' => '$' . $column], 3600]],
+                        ['$multiply' => [['$minute' => '$' . $column], 60]],
+                        ['$second' => '$' . $column]
+                    ]
+                ],
+                $seconds
+            ];
+        };
+
+        if($fromDate <= $toDate){
+            // Construct and return the MongoDB query condition for the specified time range
+            return [
+                '$expr' => [
+                    '$and' => [
+                        [
+                            '$gte' => $getBaseCondition($fromDate, $column)
+                        ],
+                        [
+                            '$lte' => $getBaseCondition($toDate, $column)
                         ]
                     ]
                 ]
-            ]
-        ];
+            ];
+        }
+        else{
+            $from1 = $fromDate;
+            $to1 = 86400;
+
+            $from2 = 0;
+            $to2 = $toDate;
+
+            // Construct and return the MongoDB query condition for the specified time range
+            return [
+                '$or' => [
+                    [
+                        '$expr' => [
+                            '$and' => [
+                                [
+                                    '$gte' => $getBaseCondition($from1, $column)
+                                ],
+                                [
+                                    '$lte' => $getBaseCondition($to1, $column)
+                                ]
+                            ]
+                        ]
+                    ],
+                    [
+                        '$expr' => [
+                            '$and' => [
+                                [
+                                    '$gte' => $getBaseCondition($from2, $column)
+                                ],
+                                [
+                                    '$lte' => $getBaseCondition($to2, $column)
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ];
+        }
     }
 
     // Apply the filtering conditions for PostgreSQL queries
