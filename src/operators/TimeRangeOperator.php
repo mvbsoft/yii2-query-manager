@@ -58,7 +58,19 @@ class TimeRangeOperator extends OperatorAbstract
         $fromDate = Carbon::now()->startOfDay()->addSeconds($preparedSearchValue['from'])->timestamp;
         $toDate   = Carbon::now()->startOfDay()->addSeconds($preparedSearchValue['to'])->timestamp;
 
-        return $valueTimestamp >= $fromDate && $valueTimestamp <= $toDate;
+        if($fromDate <= $toDate){
+            return $valueTimestamp >= $fromDate && $valueTimestamp <= $toDate;
+        }
+        else{
+            $from1 = $fromDate;
+            $to1 = 86400;
+
+            $from2 = 0;
+            $to2 = $toDate;
+
+            return ($valueTimestamp >= $from1 && $valueTimestamp <= $to1) ||
+                   ($valueTimestamp >= $from2 && $valueTimestamp <= $to2);
+        }
     }
 
     // Apply the filtering conditions for MongoDB queries
@@ -157,8 +169,23 @@ class TimeRangeOperator extends OperatorAbstract
         $fromDate = $preparedSearchValue['from'];
         $toDate   = $preparedSearchValue['to'];
 
-        // Return a condition for PostgreSQL, comparing seconds from the start of the day.
-        return [new Expression("EXTRACT(EPOCH FROM ($column - DATE_TRUNC('day', $column))) BETWEEN $fromDate AND $toDate")];
+        if($fromDate <= $toDate){
+            // Return a condition for PostgreSQL, comparing seconds from the start of the day.
+            return [new Expression("EXTRACT(EPOCH FROM ($column - DATE_TRUNC('day', $column))) BETWEEN $fromDate AND $toDate")];
+        }
+        else{
+            $from1 = $fromDate;
+            $to1 = 86400;
+
+            $from2 = 0;
+            $to2 = $toDate;
+
+            // Return a condition for PostgreSQL, comparing seconds from the start of the day.
+            return ["OR",
+                [new Expression("EXTRACT(EPOCH FROM ($column - DATE_TRUNC('day', $column))) BETWEEN $from1 AND $to1")],
+                [new Expression("EXTRACT(EPOCH FROM ($column - DATE_TRUNC('day', $column))) BETWEEN $from2 AND $to2")],
+            ];
+        }
     }
 
     // Helper function to prepare the search value (validate and convert the range)
