@@ -72,8 +72,8 @@ class TimeRangeOperator extends OperatorAbstract
             return [];
         }
         // Extract the from and to date values from the prepared search value
-        $fromDate = $preparedSearchValue['from'] * 1000;
-        $toDate   = $preparedSearchValue['to'] * 1000;
+        $fromDate = $preparedSearchValue['from'];
+        $toDate   = $preparedSearchValue['to'];
 
         // Construct and return the MongoDB query condition for the specified time range
         return [
