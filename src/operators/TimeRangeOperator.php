@@ -63,9 +63,9 @@ class TimeRangeOperator extends OperatorAbstract
         }
         else{
             $from1 = $fromDate;
-            $to1 = 86400;
+            $to1 = Carbon::now()->endOfDay()->timestamp;
 
-            $from2 = 0;
+            $from2 = Carbon::now()->startOfDay()->timestamp;
             $to2 = $toDate;
 
             return ($valueTimestamp >= $from1 && $valueTimestamp <= $to1) ||
