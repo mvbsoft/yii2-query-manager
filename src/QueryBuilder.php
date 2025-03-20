@@ -359,12 +359,15 @@ class QueryBuilder extends Component {
 
                 $where = $this->generateWhere($operator, $conditionsType, $searchValue, $column, $data);
 
-                if($condition == self::OR && !is_null($where)){
-                    $query->orWhere($where);
-                }
+                if ((is_array($where) && !empty($where)) || (!is_array($where) && !is_null($where)))
+                {
+                    if($condition == self::OR){
+                        $query->orWhere($where);
+                    }
 
-                if($condition == self::AND && !is_null($where)){
-                    $query->andWhere($where);
+                    if($condition == self::AND){
+                        $query->andWhere($where);
+                    }
                 }
             }
 
