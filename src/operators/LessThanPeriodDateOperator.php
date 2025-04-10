@@ -72,7 +72,7 @@ class LessThanPeriodDateOperator extends OperatorAbstract
 
         $periodInSeconds = self::convertPeriodToSeconds($searchValue['period'], $searchValue['quantity']);
 
-        return Carbon::now()->subSeconds($periodInSeconds)->endOfDay()->timestamp > Carbon::parse($value)->startOfDay()->timestamp;
+        return Carbon::now()->subSeconds($periodInSeconds)->timestamp > Carbon::parse($value)->timestamp;
     }
 
     public static function mongodbConditions($column, $searchValue) : array
