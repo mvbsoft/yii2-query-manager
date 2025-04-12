@@ -9,12 +9,12 @@ class NotInRangeIntOperator extends OperatorAbstract
 
     public static function slug(): string
     {
-        return 'in_range_int_operator';
+        return 'not_in_range_int_operator';
     }
 
     public static function name(): string
     {
-        return 'In range';
+        return 'Not in range';
     }
 
     public static function group(): string
@@ -24,7 +24,7 @@ class NotInRangeIntOperator extends OperatorAbstract
 
     public static function description(): string
     {
-        return 'In range';
+        return 'Not in range';
     }
 
     /**
