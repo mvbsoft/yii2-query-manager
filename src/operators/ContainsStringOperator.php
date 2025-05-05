@@ -2,6 +2,7 @@
 
 namespace mvbsoft\queryManager\operators;
 
+use MongoDB\BSON\Regex;
 use mvbsoft\queryManager\OperatorAbstract;
 
 class ContainsStringOperator extends OperatorAbstract
@@ -78,10 +79,7 @@ class ContainsStringOperator extends OperatorAbstract
 
         // Construct the condition for MongoDB using a case-insensitive regex search
         return [
-            $column => [
-                '$regex' => $escapedSearchValue,
-                '$options' => 'i' // Case-insensitive option
-            ]
+            $column => new Regex($escapedSearchValue, 'i')
         ];
     }
 

@@ -74,10 +74,13 @@ class NotContainsStringOperator extends OperatorAbstract
         // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
+        // Escape special characters
+        $escapedSearchValue = preg_quote($searchValue, '/');
+
         // Construct the MongoDB condition for case-insensitive pattern match using $not and $regex
         return [
             $column => [
-                '$not' => new Regex($searchValue, 'i')
+                '$not' => new Regex($escapedSearchValue, 'i')
             ]
         ];
     }
