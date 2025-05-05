@@ -2,7 +2,6 @@
 
 namespace mvbsoft\queryManager\operators;
 
-use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
@@ -16,7 +15,7 @@ class LessThanDateOperator extends OperatorAbstract
 
     public static function name(): string
     {
-        return 'Less than';
+        return 'Less than date';
     }
 
     public static function group(): string
@@ -26,7 +25,7 @@ class LessThanDateOperator extends OperatorAbstract
 
     public static function description(): string
     {
-        return 'Less than';
+        return 'Less than date';
     }
 
     /**
