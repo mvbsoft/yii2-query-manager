@@ -72,7 +72,7 @@ class MoreThanPeriodDateOperator extends OperatorAbstract
 
         $periodInSeconds = self::convertPeriodToSeconds($searchValue['period'], $searchValue['quantity']);
 
-        return Carbon::now()->subSeconds($periodInSeconds)->timestamp < Carbon::parse($value)->timestamp;
+        return Carbon::now()->addSeconds($periodInSeconds)->timestamp < Carbon::parse($value)->timestamp;
     }
 
     public static function mongodbConditions($column, $searchValue) : array
