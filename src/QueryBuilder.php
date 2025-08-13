@@ -29,6 +29,7 @@ class QueryBuilder extends Component {
     public const CONDITIONS_TYPE_POSTGRESQL = 'postgresql';
 
     // Constants defining conditions element types
+    public const CONDITIONS_ELEMENT_TYPE_NODES = 'nodes';
     public const CONDITIONS_ELEMENT_TYPE_EVENT = 'event';
     public const CONDITIONS_ELEMENT_TYPE_GROUP = 'group';
     public const CONDITIONS_ELEMENT_TYPE_INDIVIDUAL = 'individual';
@@ -88,6 +89,7 @@ class QueryBuilder extends Component {
     public static function conditionsElementsTypes(): array
     {
         return [
+            self::CONDITIONS_ELEMENT_TYPE_NODES,
             self::CONDITIONS_ELEMENT_TYPE_EVENT,
             self::CONDITIONS_ELEMENT_TYPE_GROUP,
             self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL,
@@ -248,7 +250,7 @@ class QueryBuilder extends Component {
                 $element = $this->filterConditions($element);
             }
 
-            if($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
+            if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
                 // Removing the extra keys
                 $element = array_intersect_key($element, array_flip(self::CONDITIONS_ELEMENT_KEYS_EVENT));
 
@@ -288,7 +290,7 @@ class QueryBuilder extends Component {
                 elseif($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
                     $model = $this->groupModel();
                 }
-                elseif($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
+                elseif(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
                     $model = $this->eventModel();
                 }
                 else{
@@ -315,7 +317,7 @@ class QueryBuilder extends Component {
                     }
                 }
 
-                if($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
+                if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
                     $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
 
                     foreach ($elementErrors as $ek => $errors){
@@ -371,23 +373,8 @@ class QueryBuilder extends Component {
                 }
             }
 
-            // Handle group elements
-            if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
-                $groupElements = $element['elements'];
-
-                $groupQuery = $this->generateConditions($groupElements, $conditionsType, $data);
-
-                if($condition == self::OR && !empty($groupQuery->where)){
-                    $query->orWhere($groupQuery->where);
-                }
-
-                if($condition == self::AND && !empty($groupQuery->where)){
-                    $query->andWhere($groupQuery->where);
-                }
-            }
-
             // Handle event elements
-            if($type == self::CONDITIONS_ELEMENT_TYPE_EVENT){
+            if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES, self::CONDITIONS_ELEMENT_TYPE_GROUP])){
                 $eventElements = $element['elements'];
 
                 $eventQuery = $this->generateConditions($eventElements, $conditionsType, $data);
