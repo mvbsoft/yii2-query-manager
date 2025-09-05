@@ -103,14 +103,13 @@ class BetweenIntOperator extends OperatorAbstract
     private static function _preparedSearchValue($searchValue): array
     {
         // Check if $searchValue is an array and has exactly two elements
-        if(
+        if (
             !is_array($searchValue) ||
-            !array_key_exists('from', $searchValue) ||
-            !array_key_exists('to', $searchValue) ||
-            !array_key_exists(0, $searchValue) ||
-            !array_key_exists(1, $searchValue)
-        )
-        {
+            !(
+                (array_key_exists('from', $searchValue) && array_key_exists('to', $searchValue)) ||
+                (array_key_exists(0, $searchValue) && array_key_exists(1, $searchValue))
+            )
+        ) {
             return [];
         }
 
