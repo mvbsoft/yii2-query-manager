@@ -40,6 +40,10 @@ class NotInRangeStringOperator extends OperatorAbstract
         // Get value from array
         $value = self::getValue($column, $data);
 
+        if(is_null($value)){
+            $value = '';
+        }
+
         // Check if $value is scalar
         if (!is_scalar($value)) {
             return true; // If not, return true because non-scalar value cannot match

@@ -41,6 +41,10 @@ class ContainsStringOperator extends OperatorAbstract
         // Get value from array
         $value = self::getValue($column, $data);
 
+        if(is_null($value)){
+            $value = '';
+        }
+
         // Check if both $searchValue and $value are scalar values
         if (!is_scalar($searchValue) || !is_scalar($value)) {
             return false;
