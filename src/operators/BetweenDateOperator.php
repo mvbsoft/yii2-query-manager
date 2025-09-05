@@ -114,14 +114,17 @@ class BetweenDateOperator extends OperatorAbstract
         // Check if $searchValue is an array with exactly two elements
         if(
             !is_array($searchValue) ||
-            !array_key_exists('from', $searchValue)||
-            !array_key_exists('to', $searchValue))
+            !array_key_exists('from', $searchValue) ||
+            !array_key_exists('to', $searchValue) ||
+            !array_key_exists(0, $searchValue) ||
+            !array_key_exists(1, $searchValue)
+        )
         {
             return [];
         }
 
-        $fromDate = self::convertToTimestamp($searchValue['from']);
-        $toDate   = self::convertToTimestamp($searchValue['to']);
+        $fromDate = self::convertToTimestamp($searchValue['from'] ?? $searchValue[0]);
+        $toDate   = self::convertToTimestamp($searchValue['to'] ?? $searchValue[0]);
 
         // Check if any of the timestamps couldn't be converted
         if(is_null($fromDate) || is_null($toDate)){

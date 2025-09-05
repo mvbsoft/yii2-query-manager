@@ -105,15 +105,18 @@ class BetweenIntOperator extends OperatorAbstract
         // Check if $searchValue is an array and has exactly two elements
         if(
             !is_array($searchValue) ||
-            !array_key_exists('from', $searchValue)||
-            !array_key_exists('to', $searchValue))
+            !array_key_exists('from', $searchValue) ||
+            !array_key_exists('to', $searchValue) ||
+            !array_key_exists(0, $searchValue) ||
+            !array_key_exists(1, $searchValue)
+        )
         {
             return [];
         }
 
         // Get the start and end values of the range
-        $from = $searchValue['from'];
-        $to = $searchValue['to'];
+        $from = $searchValue['from'] ?? $searchValue[0];
+        $to = $searchValue['to'] ?? $searchValue[1];
 
         // Check if all values are numeric
         if (!is_numeric($from) || !is_numeric($to)) {
