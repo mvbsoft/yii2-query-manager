@@ -28,69 +28,76 @@ class NotEqualStringOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if the given scalar values are not equal after converting them to strings.
+     * Checks if the value differs from the search text (case-sensitive). An empty value is read as ''.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue The search value to be compared against.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue The text to compare with.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the scalar values are not equal after converting them to strings, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $value = self::convertToString(self::getValue($column, $data));
 
-        if(is_null($value)){
-            $value = '';
+        if (!is_scalar($searchValue) || is_null($value)) {
+            return false;
         }
 
-        // Check if both $searchValue and $value are scalar
-        if (!is_scalar($searchValue) || !is_scalar($value)) {
-            return false; // If not, return false
-        }
-
-        // Convert $searchValue and $value to strings and check if they are not equal
-        return strval($searchValue) !== strval($value);
+        return strval($searchValue) !== $value;
     }
 
     /**
-     * Generate a condition array for MongoDB to match a scalar value.
+     * Generate a condition array for MongoDB (`$ne` also matches documents without the column,
+     * which are read as '').
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The scalar value to search for (string, number, or boolean).
-     * @return array The condition array for MongoDB.
+     * @param mixed $searchValue The text to compare with.
+     * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue): array
     {
-        // Initialize an empty condition array
-        $condition = [];
-
-        // Check if $searchValue is a scalar value (string, number, or boolean)
         if (!is_scalar($searchValue)) {
-            return $condition; // Return empty condition if $searchValue is not scalar
+            return self::mongodbMatchNothing($column);
         }
 
-        // Build the MongoDB condition to check for inequality
+        $searchValue = strval($searchValue);
+
+        // Invalid UTF-8 can not be stored, so every value differs from it (MongoDB would reject it with an error)
+        if (!self::isUtf8($searchValue)) {
+            return self::mongodbMatchAll($column);
+        }
+
+        if ($searchValue === '') {
+            return [$column => ['$nin' => ['', null]]];
+        }
+
         return [$column => ['$ne' => $searchValue]];
     }
 
-
     /**
-     * Generate a condition array for the query builder to match a scalar value in Postgres.
+     * Generate a condition array for Postgres. NULL is read as '' — so it matches any non-empty search text.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The scalar value to search for (string, number, or boolean).
+     * @param mixed $searchValue The text to compare with.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is a scalar value (string, number, or boolean)
         if (!is_scalar($searchValue)) {
-            return [];
+            return self::postgresqlMatchNothing();
         }
 
-        // Construct the condition for matching the scalar value in the column
-        return ["!=", $column, strval($searchValue)];
+        $searchValue = strval($searchValue);
+
+        if (!self::isUtf8($searchValue)) {
+            return self::postgresqlMatchAll();
+        }
+
+        if ($searchValue === '') {
+            return ['!=', $column, ''];
+        }
+
+        return ['or', ['!=', $column, $searchValue], [$column => null]];
     }
 
 }

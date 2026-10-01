@@ -7,7 +7,6 @@ use mvbsoft\queryManager\OperatorAbstract;
 
 class NotContainsStringOperator extends OperatorAbstract
 {
-
     public static function slug(): string
     {
         return 'not_contains_string_operator';
@@ -29,86 +28,76 @@ class NotContainsStringOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if a substring not exists within a string without considering case sensitivity.
+     * Checks (case-insensitive) if the value does not contain the search text.
+     * An empty value is read as '' — so it matches any non-empty search text.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue The substring to search for.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue The text that must be absent.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the substring is found within the string, false otherwise.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $value = self::convertToString(self::getValue($column, $data));
 
-        if(is_null($value)){
-            $value = '';
-        }
-
-        // Check if both $searchValue and $value are scalar values
-        if (!is_scalar($searchValue) || !is_scalar($value)) {
+        if (!is_scalar($searchValue) || is_null($value)) {
             return false;
         }
 
-        // Convert $searchValue and $value to strings
-        $searchValue = strval($searchValue);
-        $value = strval($value);
-
-        // Escape special characters in $searchValue
-        $escapedSearchValue = preg_quote($searchValue, '/');
-
-        // Check if $searchValue is not found within $value using the regular expression without considering case sensitivity
-        return preg_match("/{$escapedSearchValue}/i", $value) !== 1;
+        return !self::phpLiteralMatch(strval($searchValue), $value);
     }
 
     /**
-     * Generate a condition array for MongoDB to perform a case-insensitive pattern match.
+     * Constructs a condition for MongoDB (`$not` also matches documents without the column).
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The value to search for.
-     * @return array The condition array for MongoDB.
+     * @param mixed $searchValue The text that must be absent.
+     * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is a scalar value
         if (!is_scalar($searchValue)) {
-            return [];
+            return self::mongodbMatchNothing($column);
         }
 
-        // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
-        // Escape special characters
-        $escapedSearchValue = preg_quote($searchValue, '/');
+        // Invalid UTF-8 can not be part of a stored text, so no value contains it (MongoDB would reject it)
+        if (!self::isUtf8($searchValue)) {
+            return self::mongodbMatchAll($column);
+        }
 
-        // Construct the MongoDB condition for case-insensitive pattern match using $not and $regex
-        return [
-            $column => [
-                '$not' => new Regex($escapedSearchValue, 'i')
-            ]
-        ];
+        // Every value contains an empty string
+        if ($searchValue === '') {
+            return self::mongodbMatchNothing($column);
+        }
+
+        return [$column => ['$not' => new Regex(preg_quote($searchValue, '/'), 'i')]];
     }
 
-
     /**
-     * Generate a condition array for the query builder to perform a case-insensitive pattern match.
+     * Constructs a condition for PostgreSQL. NULL is added explicitly: NOT ILIKE never matches NULL.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The value to search for.
+     * @param mixed $searchValue The text that must be absent.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is a scalar value
         if (!is_scalar($searchValue)) {
-            return [];
+            return self::postgresqlMatchNothing();
         }
 
-        // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
-        // Construct the condition for case-insensitive pattern match using NOT ILIKE
-        return ['NOT ILIKE', $column, $searchValue];
-    }
+        if (!self::isUtf8($searchValue)) {
+            return self::postgresqlMatchAll();
+        }
 
+        if ($searchValue === '') {
+            return self::postgresqlMatchNothing();
+        }
+
+        return ['or', ['NOT ILIKE', $column, $searchValue], [$column => null]];
+    }
 }

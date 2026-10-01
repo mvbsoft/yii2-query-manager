@@ -49,47 +49,95 @@ class LessThanPeriodDateOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if the given value is less than the search value after converting them to timestamps.
+     * The boundary moment: now + quantity * period (a negative quantity points to the past,
+     * e.g. ['period' => 'days', 'quantity' => -15] is "15 days ago"). Months are 30 days, years are 365 days.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue The search value to be compared against.
-     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the value is less than the search value after converting them to timestamps, otherwise returns false.
+     * The quantity must be a whole number (an int or a numeric string such as "-15"); a fractional quantity or a
+     * boundary outside years 0001..9999 makes the search value invalid.
+     *
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
+     * @return int|null The UNIX timestamp or null if the search value is invalid.
      */
-    public static function phpConditions(string $column, $searchValue, array $data): bool
+    public static function periodBoundary($searchValue): ?int
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
-
-        if(
-            !array_key_exists('period', $searchValue) ||
-            !in_array($searchValue['period'], self::getPeriods()) ||
-            !array_key_exists('quantity', $searchValue) ||
-            !is_numeric($searchValue['quantity'])
-        ){
-            return false;
+        if (
+            !is_array($searchValue) ||
+            !in_array($searchValue['period'] ?? null, self::getPeriods(), true) ||
+            !is_numeric($searchValue['quantity'] ?? null)
+        ) {
+            return null;
         }
 
-        $periodInSeconds = self::convertPeriodToSeconds($searchValue['period'], $searchValue['quantity']);
+        $quantity = $searchValue['quantity'] + 0;
 
-        return Carbon::now()->addSeconds($periodInSeconds)->timestamp > Carbon::parse($value)->timestamp;
-    }
+        if (!is_finite($quantity) || floor($quantity) != $quantity) {
+            return null;
+        }
 
-    public static function mongodbConditions($column, $searchValue) : array
-    {
-        return [];
+        // Float arithmetic: a huge quantity must not overflow the integer range
+        $boundary = Carbon::now()->timestamp + (float)self::convertPeriodToSeconds($searchValue['period']) * $quantity;
+
+        if (!self::isTimestampInRange($boundary)) {
+            return null;
+        }
+
+        return (int)$boundary;
     }
 
     /**
-     * Generate a condition array for the query builder to match timestamps in Postgres.
+     * Checks if the value is a date before now + quantity * period.
+     *
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
+     * @return bool
+     */
+    public static function phpConditions(string $column, $searchValue, array $data): bool
+    {
+        $boundary = self::periodBoundary($searchValue);
+        $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
+
+        if (is_null($boundary) || is_null($valueTimestamp)) {
+            return false;
+        }
+
+        return $valueTimestamp < $boundary;
+    }
+
+    /**
+     * Generate a condition array for MongoDB.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The search value to compare against (can be a timestamp or any format convertible to a timestamp).
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue) : array
+    {
+        $boundary = self::periodBoundary($searchValue);
+
+        if (is_null($boundary)) {
+            return self::mongodbMatchNothing($column);
+        }
+
+        return [$column => ['$lt' => self::convertToMongoDate($boundary)]];
+    }
+
+    /**
+     * Generate a condition array for Postgres.
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        return [];
+        $boundary = self::periodBoundary($searchValue);
+
+        if (is_null($boundary)) {
+            return self::postgresqlMatchNothing();
+        }
+
+        return ['<', $column, self::postgresqlTimestamp($boundary)];
     }
 
     public static function convertPeriodToSeconds(string $period, int $quantity = 1)

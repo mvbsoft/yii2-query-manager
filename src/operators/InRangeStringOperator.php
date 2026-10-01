@@ -28,126 +28,91 @@ class InRangeStringOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if a given value matches any of the string values in the provided array.
+     * Checks if the value equals one of the texts in the list (non-scalar items are ignored).
+     * An empty value is read as ''.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue An array containing string values to search for.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue The list of texts.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the value matches any of the string values in the array, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $value = self::convertToString(self::getValue($column, $data));
 
-        if(is_null($value)){
-            $value = '';
+        if (is_null($value)) {
+            return false;
         }
 
-        // Check if $value is scalar
-        if(!is_scalar($value)){
-            return false; // If not, return false
-        }
-
-        // Convert $value to a string
-        $valueString = strval($value);
-
-        // Check if $searchValue is an array
-        if(!is_array($searchValue)){
-            return false; // If not, return false
-        }
-
-        // Iterate through each item in $searchValue
-        foreach ($searchValue as $item){
-            // Skip non-scalar items
-            if(!is_scalar($item)){
-                continue; // Move to the next iteration
-            }
-
-            // Convert the item to a string
-            $itemString = strval($item);
-
-            // Check if $valueString matches $itemString
-            if($valueString === $itemString){
-                return true; // If so, return true
-            }
-        }
-
-        return false; // If no match found, return false
+        return in_array($value, self::_preparedSearchValue($searchValue), true);
     }
 
     /**
-     * Generate a condition array for MongoDB to match an array of string values.
+     * Generate a condition array for MongoDB. If '' is in the list, empty (null / missing) values match too.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The array of values to search for.
+     * @param mixed $searchValue The list of texts.
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is an array
-        if (!is_array($searchValue)) {
-            return [];
+        // Invalid UTF-8 items can not equal any stored value (and MongoDB would reject them with an error)
+        $strings = array_values(array_filter(self::_preparedSearchValue($searchValue), [self::class, 'isUtf8']));
+
+        if (empty($strings)) {
+            return self::mongodbMatchNothing($column);
         }
 
-        $searchValueStrings = [];
-
-        // Iterate through each item in $searchValue
-        foreach ($searchValue as $item) {
-            // Skip non-scalar items
-            if (!is_scalar($item)) {
-                continue; // Move to the next iteration
-            }
-
-            // Convert the item to a string
-            $searchValueStrings[] = strval($item);
+        if (in_array('', $strings, true)) {
+            $strings[] = null;
         }
 
-        // If there are no valid scalar values in the array, return an empty array
-        if (empty($searchValueStrings)) {
-            return [];
-        }
-
-        // Construct the condition for matching the array of string values in the column
-        // MongoDB query format is used here to match documents where the column value is in the searchValueStrings array
-        return [$column => ['$in' => $searchValueStrings]];
+        return [$column => ['$in' => $strings]];
     }
 
-
     /**
-     * Generate a condition array for the query builder to match an array of string values in Postgres.
+     * Generate a condition array for Postgres. If '' is in the list, NULL matches too.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The array of values to search for.
+     * @param mixed $searchValue The list of texts.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is an array
+        $strings = array_values(array_filter(self::_preparedSearchValue($searchValue), [self::class, 'isUtf8']));
+
+        if (empty($strings)) {
+            return self::postgresqlMatchNothing();
+        }
+
+        if (in_array('', $strings, true)) {
+            return ['or', ['in', $column, $strings], [$column => null]];
+        }
+
+        return ['in', $column, $strings];
+    }
+
+    /**
+     * Scalar items of the list cast to strings, other items are skipped.
+     *
+     * @param mixed $searchValue
+     * @return array
+     */
+    private static function _preparedSearchValue($searchValue): array
+    {
         if (!is_array($searchValue)) {
             return [];
         }
 
-        $searchValueStrings = [];
+        $strings = [];
 
-        // Iterate through each item in $searchValue
         foreach ($searchValue as $item) {
-            // Skip non-scalar items
-            if (!is_scalar($item)) {
-                continue; // Move to the next iteration
+            if (is_scalar($item)) {
+                $strings[] = strval($item);
             }
-
-            // Convert the item to a string
-            $searchValueStrings[] = strval($item);
         }
 
-        // If there are no valid scalar values in the array, return an empty array
-        if (empty($searchValueStrings)) {
-            return [];
-        }
-
-        // Construct the condition for matching the array of string values in the column
-        return [$column => $searchValueStrings];
+        return $strings;
     }
 
 }

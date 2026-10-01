@@ -3,6 +3,7 @@
 namespace mvbsoft\queryManager\operators;
 
 use mvbsoft\queryManager\OperatorAbstract;
+use yii\db\Expression;
 
 class IsNullOperator extends OperatorAbstract
 {
@@ -72,8 +73,10 @@ class IsNullOperator extends OperatorAbstract
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Construct a condition array to match a null value or an empty string in the specified column
-        return ['OR', [$column => null], [$column => '']];
+        // Construct a condition array to match a null value or an empty string in the specified column.
+        // The ::text cast keeps the comparison with '' valid for non-text columns (timestamp, integer, boolean);
+        // [[ ]] lets Yii quote the column name like it does in the hash condition.
+        return ['OR', [$column => null], ['=', new Expression("[[$column]]::text"), '']];
     }
 
 }

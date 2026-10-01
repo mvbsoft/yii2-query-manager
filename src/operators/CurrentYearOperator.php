@@ -4,7 +4,6 @@ namespace mvbsoft\queryManager\operators;
 
 use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
-use yii\db\Expression;
 
 class CurrentYearOperator extends OperatorAbstract
 {
@@ -30,66 +29,64 @@ class CurrentYearOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if the given value represents the current year.
+     * Start and end (inclusive) timestamps of the current year in the PHP default timezone.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue Not used in this function.
+     * @return array ['from' => int, 'to' => int]
+     */
+    public static function range(): array
+    {
+        return [
+            'from' => Carbon::now()->startOfYear()->timestamp,
+            'to'   => Carbon::now()->endOfYear()->timestamp,
+        ];
+    }
+
+    /**
+     * Checks if the value is a date of the current year.
+     *
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue Not used.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the value represents the current year, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
 
-        // Check if $value is a scalar value (string, number, or boolean)
-        if (!is_scalar($value)) {
-            return false; // If not, return false
+        if (is_null($valueTimestamp)) {
+            return false;
         }
 
-        // Convert $value to a timestamp
-        $value = self::convertToTimestamp($value);
+        $range = self::range();
 
-        // Check if the conversion was successful
-        if (is_null($value)) {
-            return false; // If not, return false
-        }
-
-        // Check if the value represents the current year
-        return Carbon::createFromTimestamp($value)->isCurrentYear();
+        return $valueTimestamp >= $range['from'] && $valueTimestamp <= $range['to'];
     }
 
     /**
      * Generate a condition array for MongoDB to match the current year.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue Optional search value (not used in this function).
+     * @param mixed $searchValue Not used.
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        // Calculate the start and end timestamps of the current year
-        $start = Carbon::now()->startOfYear()->timestamp;
-        $end = Carbon::now()->endOfYear()->timestamp;
+        $range = self::range();
 
-        // Construct the condition for MongoDB
-        return [
-            $column => [
-                '$gte' => self::convertToMongoDate($start),
-                '$lte' => self::convertToMongoDate($end)
-            ],
-        ];
+        return self::mongodbDateRange($column, $range['from'], $range['to']);
     }
 
     /**
-     * Generate a condition array for the query builder to match the current year.
+     * Generate a condition array for Postgres to match the current year.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue Optional search value (not used in this function).
+     * @param mixed $searchValue Not used.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue = null): array
     {
-        return [new Expression("date_part('year', $column) = date_part('year', current_date)")];
+        $range = self::range();
+
+        return self::postgresqlDateRange($column, $range['from'], $range['to']);
     }
 }

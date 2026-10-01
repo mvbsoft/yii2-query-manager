@@ -3,113 +3,125 @@
 namespace mvbsoft\queryManager\operators;
 
 use Carbon\Carbon;
-use Carbon\CarbonPeriod;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
 class DaysOfWeekOperator extends OperatorAbstract
 {
-    // Return the slug of the operator (unique identifier)
     public static function slug(): string
     {
         return 'days_of_week_operator';
     }
 
-    // Return the human-readable name of the operator
     public static function name(): string
     {
         return 'Days Of Week';
     }
 
-    // Return the group of the operator (Date filter in this case)
     public static function group(): string
     {
         return parent::GROUP_DATE;
     }
 
-    // Return a brief description of the operator's functionality
     public static function description(): string
     {
         return 'Date filtering based on the days of the week';
     }
 
-    // Apply the filtering conditions for PHP-based queries
+    /**
+     * Checks if the value is a date that falls on one of the given weekdays (0 = Sunday ... 6 = Saturday),
+     * in the PHP default timezone. An empty value never matches.
+     *
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue The list of weekdays 0..6.
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
+     * @return bool
+     */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Prepare the search value (array of days of the week)
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $days = self::_preparedSearchValue($searchValue);
+        $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
 
-        // Return false if the prepared search value is empty (invalid input)
-        if(empty($preparedSearchValue)){
+        if (empty($days) || is_null($valueTimestamp) || !self::isTimestampInRange($valueTimestamp)) {
             return false;
         }
 
-        // Get the value for comparison from the data array (assumed to be a date)
-        $value = self::getValue($column, $data);
-
-        // Convert the value into a Carbon instance (date object)
-        $valueDate = Carbon::parse($value);
-
-        // Check if the value's day of the week is in the search range
-        return in_array($valueDate->dayOfWeek, $preparedSearchValue);
+        return in_array(Carbon::createFromTimestamp($valueTimestamp)->dayOfWeek, $days, true);
     }
 
-    // Apply the filtering conditions for MongoDB queries
+    /**
+     * Constructs a condition for MongoDB. `$dayOfWeek` is 1 = Sunday ... 7 = Saturday and is evaluated in the
+     * PHP default timezone; values that are not BSON dates never match (instead of failing the whole query).
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The list of weekdays 0..6.
+     * @return array The condition array for the query.
+     */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        // Prepare the search value (array of days of the week)
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $days = self::_preparedSearchValue($searchValue);
 
-        // Return an empty array if the prepared search value is empty (invalid input)
-        if(empty($preparedSearchValue)){
-            return [];
+        if (empty($days)) {
+            return self::mongodbMatchNothing($column);
         }
 
-        foreach ($preparedSearchValue as $key => $value){
-            $preparedSearchValue[$key] = ++$value;
-        }
+        $mongoDays = array_map(function ($day) {
+            return $day + 1;
+        }, $days);
 
         return [
             '$expr' => [
-                '$in' => [
-                    ['$dayOfWeek' => '$' . $column],
-                    $preparedSearchValue
-                ]
+                '$and' => array_merge(self::mongodbExprIsDate($column), [
+                    ['$in' => [
+                        ['$dayOfWeek' => ['date' => '$' . $column, 'timezone' => date_default_timezone_get()]],
+                        $mongoDays
+                    ]]
+                ])
             ]
         ];
     }
 
-    // Apply the filtering conditions for PostgreSQL queries
+    /**
+     * Constructs a condition for PostgreSQL (EXTRACT(DOW) is 0 = Sunday ... 6 = Saturday, session timezone).
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue The list of weekdays 0..6.
+     * @return array The condition array for the query.
+     */
     public static function postgresqlConditions(string $column, $searchValue) : array
     {
-        // Prepare the search value (array of days of the week)
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $days = self::_preparedSearchValue($searchValue);
 
-        // Return an empty array if the prepared search value is empty (invalid input)
-        if(empty($preparedSearchValue)){
+        if (empty($days)) {
+            return self::postgresqlMatchNothing();
+        }
+
+        return ['and', self::postgresqlDateInRange($column), new Expression("EXTRACT(DOW FROM [[$column]]) IN (" . implode(', ', $days) . ")")];
+    }
+
+    /**
+     * Validates the weekdays: every item must read as "0".."6" (an int, or a string / float with exactly that
+     * text — the same rule as before: "4" and 4.0 are valid, "04", " 4", true are not).
+     *
+     * @param mixed $searchValue
+     * @return int[] The weekdays or an empty array if the list is invalid.
+     */
+    private static function _preparedSearchValue($searchValue): array
+    {
+        if (!is_array($searchValue)) {
             return [];
         }
 
-        // Construct a PostgreSQL condition to check if the day of the week is in the list of days provided
-        return [
-            'in',
-            new Expression("EXTRACT(DOW FROM $column)"),
-            $preparedSearchValue
-        ];
-    }
+        $days = [];
 
-    // Helper function to prepare the search value (validate and convert the array of days)
-    private static function _preparedSearchValue($searchValue): array
-    {
-        // Ensure the search value is an array of integers between 0 and 6 (valid days of the week)
-        if(
-            !is_array($searchValue) ||
-            array_diff($searchValue, range(0, 6))
-        ){
-            return []; // Return an empty array if validation fails
+        foreach ($searchValue as $day) {
+            if (is_bool($day) || !is_scalar($day) || !in_array((string)$day, ['0', '1', '2', '3', '4', '5', '6'], true)) {
+                return [];
+            }
+
+            $days[] = intval($day);
         }
 
-        // Return the validated list of days of the week
-        return $searchValue;
+        return array_values(array_unique($days));
     }
 }

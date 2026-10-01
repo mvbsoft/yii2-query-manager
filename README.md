@@ -144,100 +144,65 @@ $conditions = [
 
 ### Available Operators
 
-Here's a list of operators available in this package along with their descriptions:
+| Group | Slug | Value |
+|---|---|---|
+| number | `equal_int_operator`, `not_equal_int_operator`, `less_than_int_operator`, `more_than_int_operator` | number or numeric string |
+| number | `between_int_operator` | `{"from": x, "to": y}` or `[x, y]`, bounds included |
+| number | `in_range_int_operator`, `not_in_range_int_operator` | list of numbers (non-numeric items are ignored) |
+| string | `equal_string_operator`, `not_equal_string_operator` | text, case-sensitive |
+| string | `contains_string_operator`, `not_contains_string_operator`, `start_with_string_operator`, `end_with_string_operator` | text, case-insensitive (Unicode), `%` and `_` are literal |
+| string | `in_range_string_operator`, `not_in_range_string_operator` | list of texts |
+| date | `equal_date_operator`, `not_equal_date_operator` | date — compared by the whole calendar day |
+| date | `less_than_date_operator`, `more_than_date_operator` | date |
+| date | `between_date_operator` | `{"from": date, "to": date}` or `[date, date]`, bounds included |
+| date | `current_day_operator`, `current_month_operator`, `current_year_operator` | not used |
+| date | `less_than_period_date_operator`, `more_than_period_date_operator` | `{"period": "days", "quantity": -15}` — compares with now + quantity × period |
+| date | `days_of_week_operator` | list of weekdays `0` (Sunday) … `6` (Saturday), as ints or strings `"0"`…`"6"` |
+| date | `time_range_operator` | `{"from": int, "to": int}` — seconds since midnight (`0…86400`); `from > to` wraps over midnight |
+| boolean | `is_true_boolean_operator`, `is_false_boolean_operator` | not used |
+| default | `is_null_operator`, `is_not_null_operator` | not used — null, a missing value and `''` are "null" |
 
-1. **Between Date Operator**
- - Slug: between_date_operator 
- - Group: date 
- - Description: Matches values within a specified date range.
-2. **Between Integer Operator**
- - Slug: between_int_operator 
- - Group: number 
- - Description: Checks if an integer value falls within a specified range.
-3. **Contains String Operator**
- - Slug: contains_string_operator 
- - Group: string 
- - Description: Matches strings containing a specific substring.
-4. **Current Date Operator**
- - Slug: current_date_operator
- - Group: date
- - Description: Matches records with the current date.
-5. **End With String Operator**
- - Slug: end_with_string_operator
- - Group: string
- - Description: Matches strings ending with a specific substring.
-6. **Equal Date Operator**
- - Slug: equal_date_operator
- - Group: date
- - Description: Matches records with a specific date.
-7. **Equal Integer Operator**
- - Slug: equal_int_operator
- - Group: number
- - Description: Matches records with a specific integer value.
-8. **Equal String Operator**
- - Slug: equal_string_operator
- - Group: string
- - Description: Matches records with a specific string value.
-9. **In Range Integer Operator**
- - Slug: in_range_int_operator
- - Group: number
- - Description: Matches records within a specified integer range.
-10. **In Range String Operator**
- - Slug: in_range_string_operator
- - Group: string
- - Description: Matches records within a specified string range.
-11. **Is False Boolean Operator**
- - Slug: is_false_boolean_operator
- - Group: boolean
- - Description: Matches records where the boolean value is false.
-12. **Is Not Null Operator**
- - Slug: is_not_null_operator
- - Group: default
- - Description: Matches records where the value is not null.
-13. **Is Null Operator**
- - Slug: is_null_operator
- - Group: default
- - Description: Matches records where the value is null.
-14. **Is True Boolean Operator**
- - Slug: is_true_boolean_operator
- - Group: boolean
- - Description: Matches records where the boolean value is true.
-15. **Less Than Date Operator**
- - Slug: less_than_date_operator
- - Group: date
- - Description: Matches records with a date less than a specified value.
-16. **Less Than Integer Operator**
- - Slug: less_than_int_operator
- - Group: number
- - Description: Matches records with an integer value less than a specified value.
-17. **More Than Date Operator**
- - Slug: more_than_date_operator
- - Group: date
- - Description: Matches records with a date greater than a specified value.
-18. **More Than Integer Operator**
- - Slug: more_than_int_operator
- - Group: number
- - Description: Matches records with an integer value greater than a specified value.
-19. **Not Contains String Operator**
- - Slug: not_contains_string_operator
- - Group: string
- - Description: Matches strings not containing a specific substring.
-20. **Not Equal Date Operator**
- - Slug: not_equal_date_operator
- - Group: date
- - Description: Matches records with a date not equal to a specified value.
-21. **Not Equal Integer Operator**
- - Slug: not_equal_int_operator
- - Group: number
- - Description: Matches records with an integer value not equal to a specified value.
-22. **Not Equal String Operator**
- - Slug: not_equal_string_operator
- - Group: string
- - Description: Matches records with a string value not equal to a specified value.
-23. **Start With String Operator**
- - Slug: start_with_string_operator
- - Group: string
- - Description: Matches strings starting with a specific substring.
+A date is a UNIX timestamp or any string `strtotime()` understands (`2026-09-16`, `2026-09-16 10:00:00`, `today -15 days`),
+between `0001-01-01 00:00:00 UTC` and `9999-12-31 23:59:59 UTC` (timestamps -62135596800…253402300799).
+Periods: `seconds`, `minutes`, `hours`, `days`, `weeks`, `months` (30 days), `years` (365 days); the quantity is a whole number.
+
+### Behaviour shared by PHP, MongoDB and PostgreSQL
+
+The three condition types select exactly the same rows:
+
+- **Empty values.** A null / missing value never matches number and date operators. String operators read it as `''`
+  (so it matches `not_equal_string_operator` / `not_contains_string_operator` with a non-empty text, and
+  `equal_string_operator` with `''`).
+- **Invalid search values** (wrong type, broken range or list, infinite numbers, dates outside the range above,
+  fractional period quantity) and **unknown operators** match nothing. They are never dropped from the query, so
+  `A AND <invalid>` selects nothing in every backend, and they never cause an SQL or MongoDB error.
+- **Numbers** are compared exactly: `5.7` is not equal to `5`.
+- **Dates** are compared with whole-second precision, like PHP reads them: a stored `23:59:59.600` belongs to the
+  second `23:59:59`.
+- **Calendar days, weekdays and time of day** are evaluated in the PHP default timezone
+  (`date_default_timezone_get()`); PostgreSQL uses its session timezone — keep both the same.
+
+Requirements on the stored data (otherwise PHP, which converts types, and MongoDB / PostgreSQL, which compare stored
+types strictly, can disagree):
+
+- every value is stored with the type of its field: numbers as numbers, texts as strings, dates as dates
+  (`MongoDB\BSON\UTCDateTime` in MongoDB), booleans as booleans;
+- stored dates are within years 0001…9999 both in UTC and in the PHP default timezone (PHP can not read a
+  5-digit year), and PHP receives them in an unambiguous form (`Y-m-d H:i:s` is ambiguous for one hour a year when
+  the PHP default timezone has daylight saving time — use UTC or an offset);
+- a MongoDB document keeps the fields of one table in a sub-document (`{"clients": {"num": 5, ...}}`);
+- PostgreSQL case-insensitive operators use `ILIKE`, which follows the database `LC_CTYPE`: with the `C` locale
+  non-Latin letters (Cyrillic) are compared case-sensitively.
+
+Known differences:
+
+- An empty list of conditions (or only empty groups): `phpQuery()` returns false, while `mongodbQuery()` /
+  `postgresqlQuery()` have no condition and select every row — check for an empty list before querying.
+- A search text that is not valid UTF-8 (it can not come from JSON): PHP compares it byte-wise, MongoDB and
+  PostgreSQL treat it as equal to / contained in no stored text (so `not_equal` / `not_contains` select every row).
+  They can differ when the bytes also occur inside valid texts (e.g. a lone `"\xd0"`).
+- Array values (multi-select fields) are not supported by string operators; in PHP `not_in_range_string_operator`
+  treats an array value as "not in the list".
 
 ### License
 

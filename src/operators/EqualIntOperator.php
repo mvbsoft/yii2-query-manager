@@ -28,62 +28,59 @@ class EqualIntOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if two given values are equal numerically.
+     * Checks if two given values are equal numerically (no truncation: 5.7 is not equal to 5).
      *
+     * @param string $column The column name (the value key in the PHP array of data).
      * @param mixed $searchValue The value to be checked.
-     * @param string $column The column name (unused in this function).
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool Returns true if both values are equal numerically, otherwise returns false.
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $searchNumber = self::convertToNumber($searchValue);
+        $valueNumber = self::convertToNumber(self::getValue($column, $data));
 
-        // Check if $searchValue and $value are numeric
-        if (!is_numeric($searchValue) || !is_numeric($value)) {
-            return false; // If not, return false
+        if (is_null($searchNumber) || is_null($valueNumber)) {
+            return false;
         }
 
-        // Compare the numeric values of $searchValue and $value
-        return intval($searchValue) === intval($value);
+        return $valueNumber == $searchNumber;
     }
 
     /**
-     * Generate a condition array for MongoDB to match an integer value.
+     * Generate a condition array for MongoDB to match a numeric value.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The integer value to search for.
+     * @param mixed $searchValue The numeric value to search for.
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        // Check if $searchValue is numeric
-        if (!is_numeric($searchValue)) {
-            return [];
+        $searchNumber = self::convertToNumber($searchValue);
+
+        if (is_null($searchNumber)) {
+            return self::mongodbMatchNothing($column);
         }
 
-        // Construct the condition for matching the integer value in the column
-        // MongoDB query format is used here to match documents where the column value is equal to the search value
-        return [$column => ['$eq' => intval($searchValue)]];
+        return [$column => ['$eq' => $searchNumber]];
     }
 
     /**
-     * Generate a condition array for the query builder to match an integer value in Postgres.
+     * Generate a condition array for the query builder to match a numeric value in Postgres.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The integer value to search for.
+     * @param mixed $searchValue The numeric value to search for.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is numeric
-        if (!is_numeric($searchValue)) {
-            return [];
+        $searchNumber = self::convertToNumber($searchValue);
+
+        if (is_null($searchNumber)) {
+            return self::postgresqlMatchNothing();
         }
 
-        // Construct the condition for matching the integer value in the column
-        return [$column => intval($searchValue)];
+        return ['=', $column, self::postgresqlNumber($searchNumber)];
     }
 
 }

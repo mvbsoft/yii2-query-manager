@@ -2,196 +2,129 @@
 
 namespace mvbsoft\queryManager\operators;
 
-use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
 use yii\db\Expression;
 
 class TimeRangeOperator extends OperatorAbstract
 {
-    // Return the slug of the operator (unique identifier)
     public static function slug(): string
     {
         return 'time_range_operator';
     }
 
-    // Return the human-readable name of the operator
     public static function name(): string
     {
         return 'Time Range';
     }
 
-    // Return the group of the operator (Date filter in this case)
     public static function group(): string
     {
         return parent::GROUP_DATE;
     }
 
-    // Return a brief description of the operator's functionality
     public static function description(): string
     {
         return 'Date filtering by hour and minute in range';
     }
 
-    // Apply the filtering conditions for PHP-based queries
+    /**
+     * Checks if the time of day of the value (seconds since midnight, wall clock in the PHP default timezone)
+     * is within [from, to]. If from > to the range wraps over midnight (e.g. 22:00 - 06:00). Any date matches,
+     * not only today's.
+     *
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue ['from' => int seconds, 'to' => int seconds].
+     * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
+     * @return bool
+     */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Prepare the search value by extracting the range (from-to)
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $range = self::_preparedSearchValue($searchValue);
+        $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
 
-        // Return false if the prepared search value is empty (invalid input)
-        if(empty($preparedSearchValue)){
+        if (empty($range) || is_null($valueTimestamp) || !self::isTimestampInRange($valueTimestamp)) {
             return false;
         }
 
-        // Get the value for comparison from the data array
-        $value = self::getValue($column, $data);
+        $seconds = self::secondsOfDay($valueTimestamp);
 
-        // Convert the value into a Unix timestamp
-        $valueTimestamp = self::convertToTimestamp($value);
-
-        // Return false if the value could not be converted into a valid timestamp
-        if(is_null($valueTimestamp)){
-            return false; // Invalid timestamp, return false
+        if ($range['from'] <= $range['to']) {
+            return $seconds >= $range['from'] && $seconds <= $range['to'];
         }
 
-        // Extract the from and to date values from the prepared search value
-        $fromDate = Carbon::now()->startOfDay()->addSeconds($preparedSearchValue['from'])->timestamp;
-        $toDate   = Carbon::now()->startOfDay()->addSeconds($preparedSearchValue['to'])->timestamp;
-
-        if($fromDate <= $toDate){
-            return $valueTimestamp >= $fromDate && $valueTimestamp <= $toDate;
-        }
-        else{
-            $from1 = $fromDate;
-            $to1 = Carbon::now()->endOfDay()->timestamp;
-
-            $from2 = Carbon::now()->startOfDay()->timestamp;
-            $to2 = $toDate;
-
-            return ($valueTimestamp >= $from1 && $valueTimestamp <= $to1) ||
-                   ($valueTimestamp >= $from2 && $valueTimestamp <= $to2);
-        }
+        return $seconds >= $range['from'] || $seconds <= $range['to'];
     }
 
-    // Apply the filtering conditions for MongoDB queries
+    /**
+     * Constructs a condition for MongoDB. The time of day is evaluated in the PHP default timezone;
+     * values that are not BSON dates never match (instead of failing the whole query).
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue ['from' => int seconds, 'to' => int seconds].
+     * @return array The condition array for the query.
+     */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        // Prepare the search value by extracting the range (from-to)
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $range = self::_preparedSearchValue($searchValue);
 
-        // Return an empty array if the prepared search value is empty (invalid input)
-        if(empty($preparedSearchValue)){
-            return [];
+        if (empty($range)) {
+            return self::mongodbMatchNothing($column);
         }
-        // Extract the from and to date values from the prepared search value
-        $fromDate = $preparedSearchValue['from'];
-        $toDate   = $preparedSearchValue['to'];
 
-        $getBaseCondition = function(int $seconds, string $column){
-            return [
-                [
-                    '$add' => [
-                        ['$multiply' => [['$hour' => '$' . $column], 3600]],
-                        ['$multiply' => [['$minute' => '$' . $column], 60]],
-                        ['$second' => '$' . $column]
-                    ]
-                ],
-                $seconds
-            ];
-        };
+        $date = ['date' => '$' . $column, 'timezone' => date_default_timezone_get()];
 
-        if($fromDate <= $toDate){
-            // Construct and return the MongoDB query condition for the specified time range
-            return [
-                '$expr' => [
-                    '$and' => [
-                        [
-                            '$gte' => $getBaseCondition($fromDate, $column)
-                        ],
-                        [
-                            '$lte' => $getBaseCondition($toDate, $column)
-                        ]
-                    ]
-                ]
-            ];
-        }
-        else{
-            $from1 = $fromDate;
-            $to1 = 86400;
+        $seconds = [
+            '$add' => [
+                ['$multiply' => [['$hour' => $date], 3600]],
+                ['$multiply' => [['$minute' => $date], 60]],
+                ['$second' => $date]
+            ]
+        ];
 
-            $from2 = 0;
-            $to2 = $toDate;
+        $inRange = $range['from'] <= $range['to'] ? '$and' : '$or';
 
-            // Construct and return the MongoDB query condition for the specified time range
-            return [
-                '$or' => [
-                    [
-                        '$expr' => [
-                            '$and' => [
-                                [
-                                    '$gte' => $getBaseCondition($from1, $column)
-                                ],
-                                [
-                                    '$lte' => $getBaseCondition($to1, $column)
-                                ]
-                            ]
-                        ]
-                    ],
-                    [
-                        '$expr' => [
-                            '$and' => [
-                                [
-                                    '$gte' => $getBaseCondition($from2, $column)
-                                ],
-                                [
-                                    '$lte' => $getBaseCondition($to2, $column)
-                                ]
-                            ]
-                        ]
-                    ]
-                ]
-            ];
-        }
+        return [
+            '$expr' => [
+                '$and' => array_merge(self::mongodbExprIsDate($column), [
+                    [$inRange => [
+                        ['$gte' => [$seconds, $range['from']]],
+                        ['$lte' => [$seconds, $range['to']]]
+                    ]]
+                ])
+            ]
+        ];
     }
 
-    // Apply the filtering conditions for PostgreSQL queries
+    /**
+     * Constructs a condition for PostgreSQL (wall-clock time of day in the session timezone).
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue ['from' => int seconds, 'to' => int seconds].
+     * @return array The condition array for the query.
+     */
     public static function postgresqlConditions(string $column, $searchValue) : array
     {
-        // Prepare the search value (from and to range).
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $range = self::_preparedSearchValue($searchValue);
 
-        // If no valid range, return empty array (no condition).
-        if (empty($preparedSearchValue)) {
-            return [];
+        if (empty($range)) {
+            return self::postgresqlMatchNothing();
         }
 
-        // Extract the 'from' and 'to' range values.
-        $fromDate = $preparedSearchValue['from'];
-        $toDate   = $preparedSearchValue['to'];
+        $seconds = "(EXTRACT(HOUR FROM [[$column]]) * 3600 + EXTRACT(MINUTE FROM [[$column]]) * 60 + FLOOR(EXTRACT(SECOND FROM [[$column]])))";
 
-        if($fromDate <= $toDate){
-            // Return a condition for PostgreSQL, comparing seconds from the start of the day.
-            return [new Expression("EXTRACT(EPOCH FROM ($column - DATE_TRUNC('day', $column))) BETWEEN $fromDate AND $toDate")];
-        }
-        else{
-            $from1 = $fromDate;
-            $to1 = 86400;
+        $inRange = $range['from'] <= $range['to'] ? 'AND' : 'OR';
 
-            $from2 = 0;
-            $to2 = $toDate;
-
-            // Return a condition for PostgreSQL, comparing seconds from the start of the day.
-            return ["OR",
-                [new Expression("EXTRACT(EPOCH FROM ($column - DATE_TRUNC('day', $column))) BETWEEN $from1 AND $to1")],
-                [new Expression("EXTRACT(EPOCH FROM ($column - DATE_TRUNC('day', $column))) BETWEEN $from2 AND $to2")],
-            ];
-        }
+        return ['and', self::postgresqlDateInRange($column), new Expression("($seconds >= {$range['from']} $inRange $seconds <= {$range['to']})")];
     }
 
-    // Helper function to prepare the search value (validate and convert the range)
+    /**
+     * Validates the range: 'from' and 'to' must be integers (the same rule as before).
+     *
+     * @param mixed $searchValue
+     * @return array ['from' => int, 'to' => int] or an empty array if the range is invalid.
+     */
     private static function _preparedSearchValue($searchValue): array
     {
-        // Check if $searchValue is an array with 'from' and 'to' keys, and both are valid integers
         if(
             !is_array($searchValue) ||
             !array_key_exists('from', $searchValue) ||
@@ -199,13 +132,12 @@ class TimeRangeOperator extends OperatorAbstract
             !is_int($searchValue['from']) ||
             !is_int($searchValue['to'])
         ){
-            return []; // Return an empty array if validation fails
+            return [];
         }
-        // Return the prepared range as Unix timestamps
+
         return [
             'from' => $searchValue['from'],
             'to'   => $searchValue['to']
         ];
     }
-
 }

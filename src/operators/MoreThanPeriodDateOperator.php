@@ -2,7 +2,6 @@
 
 namespace mvbsoft\queryManager\operators;
 
-use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
 
 class MoreThanPeriodDateOperator extends OperatorAbstract
@@ -49,77 +48,65 @@ class MoreThanPeriodDateOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if the given value is greater than the search value after converting them to timestamps.
+     * Checks if the value is a date after now + quantity * period
+     * (see LessThanPeriodDateOperator::periodBoundary()).
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue The search value to be compared against.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the value is greater than the search value after converting them to timestamps, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $boundary = LessThanPeriodDateOperator::periodBoundary($searchValue);
+        $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
 
-        if(
-            !array_key_exists('period', $searchValue) ||
-            !in_array($searchValue['period'], self::getPeriods()) ||
-            !array_key_exists('quantity', $searchValue) ||
-            !is_numeric($searchValue['quantity'])
-        ){
+        if (is_null($boundary) || is_null($valueTimestamp)) {
             return false;
         }
 
-        $periodInSeconds = self::convertPeriodToSeconds($searchValue['period'], $searchValue['quantity']);
-
-        return Carbon::now()->addSeconds($periodInSeconds)->timestamp < Carbon::parse($value)->timestamp;
-    }
-
-    public static function mongodbConditions($column, $searchValue) : array
-    {
-        return [];
+        return $valueTimestamp > $boundary;
     }
 
     /**
-     * Generate a condition array for the query builder to match timestamps in Postgres.
+     * Generate a condition array for MongoDB ("after the boundary second", whole-second precision like PHP).
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The search value to compare against (can be a timestamp or any format convertible to a timestamp).
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue) : array
+    {
+        $boundary = LessThanPeriodDateOperator::periodBoundary($searchValue);
+
+        if (is_null($boundary)) {
+            return self::mongodbMatchNothing($column);
+        }
+
+        return [$column => ['$gte' => self::convertToMongoDate($boundary + 1)]];
+    }
+
+    /**
+     * Generate a condition array for Postgres ("after the boundary second", whole-second precision like PHP).
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // TODO
+        $boundary = LessThanPeriodDateOperator::periodBoundary($searchValue);
 
-        return [];
+        if (is_null($boundary)) {
+            return self::postgresqlMatchNothing();
+        }
+
+        return ['>=', $column, self::postgresqlTimestamp($boundary + 1)];
     }
 
     public static function convertPeriodToSeconds(string $period, int $quantity = 1)
     {
-        switch (strtolower($period)) {
-            case self::PERIOD_YEARS:
-                $secondsInPeriod = 31536000;
-                break;
-            case self::PERIOD_MONTHS:
-                $secondsInPeriod = 2592000;
-                break;
-            case self::PERIOD_WEEKS:
-                $secondsInPeriod = 604800;
-                break;
-            case self::PERIOD_DAYS:
-                $secondsInPeriod = 86400;
-                break;
-            case self::PERIOD_HOURS:
-                $secondsInPeriod = 3600;
-                break;
-            case self::PERIOD_MINUTES:
-                $secondsInPeriod = 60;
-                break;
-            default:
-                $secondsInPeriod = 1;
-        }
-
-        return $secondsInPeriod * $quantity;
+        return LessThanPeriodDateOperator::convertPeriodToSeconds($period, $quantity);
     }
 
 }

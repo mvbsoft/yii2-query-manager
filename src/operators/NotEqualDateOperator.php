@@ -2,9 +2,7 @@
 
 namespace mvbsoft\queryManager\operators;
 
-use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
-use yii\db\Expression;
 
 class NotEqualDateOperator extends OperatorAbstract
 {
@@ -30,72 +28,76 @@ class NotEqualDateOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if the given value is not the same day as the search value after converting them to timestamps.
+     * Checks if the value is a date outside the calendar day (PHP default timezone) of the search date.
+     * An empty value never matches.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue The search value to be compared against.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue A timestamp or any string strtotime() understands.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the value is not the same day as the search value after converting them to timestamps, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $searchTimestamp = self::convertToSearchTimestamp($searchValue);
+        $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
 
-        // Convert $searchValue and $value to timestamps
-        $searchValue = self::convertToTimestamp($searchValue);
-        $value = self::convertToTimestamp($value);
-
-        // Check if either of the timestamps couldn't be converted
-        if(is_null($searchValue)  || is_null($value)){
-            return false; // If so, return false
+        if (is_null($searchTimestamp) || is_null($valueTimestamp)) {
+            return false;
         }
 
-        // Create Carbon instances from the timestamps
-        $searchValue = Carbon::createFromTimestamp($searchValue);
-        $value = Carbon::createFromTimestamp($value);
+        $day = self::dayRange($searchTimestamp);
 
-        // Check if $value is not the same day as $searchValue
-        return !$searchValue->isSameDay($value);
+        return $valueTimestamp < $day['from'] || $valueTimestamp > $day['to'];
     }
 
-    public static function mongodbConditions($column, $searchValue) : array
+    /**
+     * Generate a condition array for MongoDB: before or after the whole day of the search date
+     * (with whole-second precision, see mongodbDateRange()).
+     *
+     * @param string $column The column name.
+     * @param mixed $searchValue A timestamp or any string strtotime() understands.
+     * @return array The condition array for the query.
+     */
+    public static function mongodbConditions(string $column, $searchValue) : array
     {
-        // Convert $searchValue to a timestamp
-        $searchTimestamp = self::convertToMongoDate($searchValue);
+        $searchTimestamp = self::convertToSearchTimestamp($searchValue);
 
-        // Check if $searchValue couldn't be converted to a timestamp
         if (is_null($searchTimestamp)) {
-            return [];
+            return self::mongodbMatchNothing($column);
         }
 
+        $day = self::dayRange($searchTimestamp);
+
         return [
-            $column => ['$ne' => $searchTimestamp]
+            '$or' => [
+                [$column => ['$lt' => self::convertToMongoDate($day['from'])]],
+                [$column => ['$gte' => self::convertToMongoDate($day['to'] + 1)]]
+            ]
         ];
     }
 
     /**
-     * Generate a condition array for the query builder to match a specific date in Postgres.
+     * Generate a condition array for Postgres: before or after the whole day of the search date.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The value to search for (can be a timestamp or any format convertible to a timestamp).
+     * @param mixed $searchValue A timestamp or any string strtotime() understands.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Convert $searchValue to a timestamp
-        $searchTimestamp = self::convertToTimestamp($searchValue);
+        $searchTimestamp = self::convertToSearchTimestamp($searchValue);
 
-        // Check if $searchValue couldn't be converted to a timestamp
         if (is_null($searchTimestamp)) {
-            return [];
+            return self::postgresqlMatchNothing();
         }
 
-        // Create a Carbon object from the timestamp to get the date in a specific format
-        $searchDate = Carbon::createFromTimestamp($searchTimestamp)->toDateString();
+        $day = self::dayRange($searchTimestamp);
 
-        // Construct the condition for comparing the date in the column with the specified date
-        return [new Expression("$column::date != $searchDate")];
+        return [
+            'or',
+            ['<', $column, self::postgresqlTimestamp($day['from'])],
+            ['>=', $column, self::postgresqlTimestamp($day['to'] + 1)]
+        ];
     }
 
 }

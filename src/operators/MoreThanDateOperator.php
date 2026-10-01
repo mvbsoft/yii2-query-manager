@@ -3,7 +3,6 @@
 namespace mvbsoft\queryManager\operators;
 
 use mvbsoft\queryManager\OperatorAbstract;
-use yii\db\Expression;
 
 class MoreThanDateOperator extends OperatorAbstract
 {
@@ -29,73 +28,60 @@ class MoreThanDateOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if the given value is greater than the search value after converting them to timestamps.
+     * Checks if the value is a date after the search date.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue The search value to be compared against.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue A timestamp or any string strtotime() understands.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the value is greater than the search value after converting them to timestamps, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $searchTimestamp = self::convertToSearchTimestamp($searchValue);
+        $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
 
-        // Convert $searchValue and $value to timestamps
-        $searchValue = self::convertToTimestamp($searchValue);
-        $value = self::convertToTimestamp($value);
-
-        // Check if either of the timestamps couldn't be converted
-        if(is_null($searchValue)  || is_null($value)){
-            return false; // If so, return false
+        if (is_null($searchTimestamp) || is_null($valueTimestamp)) {
+            return false;
         }
 
-        // Check if $value is greater than $searchValue
-        return $value > $searchValue;
+        return $valueTimestamp > $searchTimestamp;
     }
 
     /**
-     * Generate a condition array for MongoDB to check if a column value is greater than the specified date value.
+     * Generate a condition array for MongoDB. "After the search second" with whole-second precision, like PHP:
+     * a stored 12:00:00.400 is still the second 12:00:00, so it does not match "more than 12:00:00".
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The search value to compare against (can be a timestamp or any format convertible to a timestamp).
+     * @param mixed $searchValue A timestamp or any string strtotime() understands.
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue): array
     {
-        // Convert $searchValue to a timestamp in milliseconds if possible
-        $timestampMilliseconds = self::convertToMongoDate($searchValue);
+        $searchTimestamp = self::convertToSearchTimestamp($searchValue);
 
-        // Check if $searchValue couldn't be converted to a timestamp
-        if (is_null($timestampMilliseconds)) {
-            return [];
+        if (is_null($searchTimestamp)) {
+            return self::mongodbMatchNothing($column);
         }
 
-        // Construct the condition for MongoDB to check if the column value is greater than the specified timestamp
-        return [
-            $column => ['$gt' => $timestampMilliseconds]
-        ];
+        return [$column => ['$gte' => self::convertToMongoDate($searchTimestamp + 1)]];
     }
 
     /**
-     * Generate a condition array for the query builder to match timestamps in Postgres.
+     * Generate a condition array for Postgres (whole-second precision, see mongodbConditions()).
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The search value to compare against (can be a timestamp or any format convertible to a timestamp).
+     * @param mixed $searchValue A timestamp or any string strtotime() understands.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Convert $searchValue to a timestamp
-        $searchValue = self::convertToTimestamp($searchValue);
+        $searchTimestamp = self::convertToSearchTimestamp($searchValue);
 
-        // Check if $searchValue couldn't be converted to a timestamp
-        if (is_null($searchValue)) {
-            return [];
+        if (is_null($searchTimestamp)) {
+            return self::postgresqlMatchNothing();
         }
 
-        // Construct a condition array to compare the column with the timestamp value
-        return [">", $column, new Expression("to_timestamp($searchValue)")];
+        return ['>=', $column, self::postgresqlTimestamp($searchTimestamp + 1)];
     }
 
 }

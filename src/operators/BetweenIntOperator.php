@@ -6,7 +6,6 @@ use mvbsoft\queryManager\OperatorAbstract;
 
 class BetweenIntOperator extends OperatorAbstract
 {
-
     public static function slug(): string
     {
         return 'between_int_operator';
@@ -28,108 +27,98 @@ class BetweenIntOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if a given integer falls within a specified range.
+     * Checks if a number falls within the specified range (bounds included).
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue An array containing two elements representing the start and end of the range.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue ['from' => x, 'to' => y] or [x, y].
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the integer falls within the specified range, false otherwise.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $range = self::_preparedSearchValue($searchValue);
+        $valueNumber = self::convertToNumber(self::getValue($column, $data));
 
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
-
-        if(empty($preparedSearchValue)){
+        if (empty($range) || is_null($valueNumber)) {
             return false;
         }
 
-        // Check if all values are numeric
-        if (!is_numeric($value)) {
-            return false;
-        }
-
-        $value = intval($value);
-
-        // Check if $value is between $fromInt and $toInt
-        return $value >= $preparedSearchValue['from'] && $value <= $preparedSearchValue['to'];
+        return $valueNumber >= $range['from'] && $valueNumber <= $range['to'];
     }
 
     /**
-     * Constructs a condition for MongoDB database query to find records with a value in the specified column between two integers.
+     * Constructs a condition for MongoDB to find documents with a number in the range.
      *
-     * @param string $column The column name in the database.
-     * @param mixed $searchValue An array containing two elements representing the start and end of the range.
+     * @param string $column The column name.
+     * @param mixed $searchValue ['from' => x, 'to' => y] or [x, y].
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $range = self::_preparedSearchValue($searchValue);
 
-        if(empty($preparedSearchValue)){
-            return [];
+        if (empty($range)) {
+            return self::mongodbMatchNothing($column);
         }
 
-        // Construct the condition for MongoDB
         return [
             $column => [
-                '$gte' => $preparedSearchValue['from'],
-                '$lte' => $preparedSearchValue['to']
+                '$gte' => $range['from'],
+                '$lte' => $range['to']
             ]
         ];
     }
 
     /**
-     * Constructs a condition for PostgreSQL database query to find records with a value шn the specified column between two integers.
+     * Constructs a condition for PostgreSQL to find rows with a number in the range.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue An array containing two elements representing the start and end of the range.
+     * @param string $column The column name.
+     * @param mixed $searchValue ['from' => x, 'to' => y] or [x, y].
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue) : array
     {
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $range = self::_preparedSearchValue($searchValue);
 
-        if(empty($preparedSearchValue)){
-            return [];
+        if (empty($range)) {
+            return self::postgresqlMatchNothing();
         }
 
-        // Construct the condition for between two timestamps
-        return ['between', $column, $preparedSearchValue['from'], $preparedSearchValue['to']];
+        return ['between', $column, self::postgresqlNumber($range['from']), self::postgresqlNumber($range['to'])];
     }
 
+    /**
+     * Normalizes the range: accepts ['from' => x, 'to' => y] or [x, y] with numeric bounds.
+     *
+     * @param mixed $searchValue
+     * @return array ['from' => int|float, 'to' => int|float] or an empty array if the range is invalid.
+     */
     private static function _preparedSearchValue($searchValue): array
     {
-        // Check if $searchValue is an array and has exactly two elements
-        if (
-            !is_array($searchValue) ||
-            !(
-                (array_key_exists('from', $searchValue) && array_key_exists('to', $searchValue)) ||
-                (array_key_exists(0, $searchValue) && array_key_exists(1, $searchValue))
-            )
-        ) {
+        if (!is_array($searchValue)) {
             return [];
         }
 
-        // Get the start and end values of the range
-        $from = $searchValue['from'] ?? $searchValue[0];
-        $to = $searchValue['to'] ?? $searchValue[1];
-
-        // Check if all values are numeric
-        if (!is_numeric($from) || !is_numeric($to)) {
+        if (array_key_exists('from', $searchValue) && array_key_exists('to', $searchValue)) {
+            $from = $searchValue['from'];
+            $to = $searchValue['to'];
+        } elseif (array_key_exists(0, $searchValue) && array_key_exists(1, $searchValue)) {
+            $from = $searchValue[0];
+            $to = $searchValue[1];
+        } else {
             return [];
         }
 
-        // Convert values to integers
-        $fromInt = intval($from);
-        $toInt = intval($to);
+        $from = self::convertToNumber($from);
+        $to = self::convertToNumber($to);
+
+        if (is_null($from) || is_null($to)) {
+            return [];
+        }
 
         return [
-            'from' => $fromInt,
-            'to' => $toInt
+            'from' => $from,
+            'to' => $to
         ];
     }
-
 }

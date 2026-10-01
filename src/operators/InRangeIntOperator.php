@@ -28,43 +28,24 @@ class InRangeIntOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if a given value matches any of the numeric values in the provided array.
+     * Checks if the value is a number equal to one of the numbers in the list (non-numeric items are ignored).
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue An array containing numeric values to search for.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue The list of numbers.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the value matches any of the numeric values in the array, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $numbers = self::_preparedSearchValue($searchValue);
+        $valueNumber = self::convertToNumber(self::getValue($column, $data));
 
-        // Check if $value is numeric
-        if(!is_numeric($value)){
+        if (is_null($valueNumber)) {
             return false;
         }
 
-        // Convert $value to an integer
-        $valueInt = intval($value);
-
-        // Check if $searchValue is an array
-        if(!is_array($searchValue)){
-            return false;
-        }
-
-        // Iterate through each item in $searchValue
-        foreach ($searchValue as $item){
-            // Skip non-numeric items
-            if(!is_numeric($item)){
-                continue; // Move to the next iteration
-            }
-
-            // Convert the item to an integer
-            $itemInt = intval($item);
-
-            // Check if $valueInt matches $itemInt
-            if($valueInt === $itemInt){
+        foreach ($numbers as $number) {
+            if ($valueNumber == $number) {
                 return true;
             }
         }
@@ -73,76 +54,64 @@ class InRangeIntOperator extends OperatorAbstract
     }
 
     /**
-     * Generate a condition array for MongoDB to match an array of integer values.
+     * Generate a condition array for MongoDB.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The array of values to search for.
+     * @param mixed $searchValue The list of numbers.
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is an array
-        if (!is_array($searchValue)) {
-            return [];
+        $numbers = self::_preparedSearchValue($searchValue);
+
+        if (empty($numbers)) {
+            return self::mongodbMatchNothing($column);
         }
 
-        $searchIntValues = [];
-
-        // Iterate through each item in $searchValue
-        foreach ($searchValue as $item) {
-            // Skip non-numeric items
-            if (!is_numeric($item)) {
-                continue;
-            }
-
-            // Convert the item to an integer
-            $searchIntValues[] = intval($item);
-        }
-
-        // If there are no valid numeric values in the array, return an empty array
-        if (empty($searchIntValues)) {
-            return [];
-        }
-
-        // Construct the condition for matching the array of integers in the column
-        // MongoDB query format is used here to match documents where the column value is in the searchIntValues array
-        return [$column => ['$in' => $searchIntValues]];
+        return [$column => ['$in' => $numbers]];
     }
 
     /**
-     * Generate a condition array for the query builder to match an array of integers in Postgres.
+     * Generate a condition array for Postgres.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The array of values to search for.
+     * @param mixed $searchValue The list of numbers.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is an array
+        $numbers = self::_preparedSearchValue($searchValue);
+
+        if (empty($numbers)) {
+            return self::postgresqlMatchNothing();
+        }
+
+        return ['in', $column, array_map([self::class, 'postgresqlNumber'], $numbers)];
+    }
+
+    /**
+     * Numeric items of the list (as int|float), other items are skipped.
+     *
+     * @param mixed $searchValue
+     * @return array
+     */
+    private static function _preparedSearchValue($searchValue): array
+    {
         if (!is_array($searchValue)) {
             return [];
         }
 
-        $searchValueInts = [];
+        $numbers = [];
 
-        // Iterate through each item in $searchValue
         foreach ($searchValue as $item) {
-            // Skip non-numeric items
-            if (!is_numeric($item)) {
-                continue;
+            $number = self::convertToNumber($item);
+
+            if (!is_null($number)) {
+                $numbers[] = $number;
             }
-
-            // Convert the item to an integer
-            $searchValueInts[] = intval($item);
         }
 
-        // If there are no valid numeric values in the array, return an empty array
-        if (empty($searchValueInts)) {
-            return [];
-        }
-
-        // Construct the condition for matching the array of integers in the column
-        return [$column => $searchValueInts];
+        return $numbers;
     }
 
 }

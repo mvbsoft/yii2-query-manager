@@ -4,7 +4,6 @@ namespace mvbsoft\queryManager\operators;
 
 use Carbon\Carbon;
 use mvbsoft\queryManager\OperatorAbstract;
-use yii\db\Expression;
 
 class CurrentDayOperator extends OperatorAbstract
 {
@@ -30,67 +29,64 @@ class CurrentDayOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if the given value represents today's date.
+     * Start and end (inclusive) timestamps of today in the PHP default timezone.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue Not used in this function.
+     * The same bounds are used by all three backends (PostgreSQL does not use its own current_date,
+     * which depends on the database clock and session timezone).
+     *
+     * @return array ['from' => int, 'to' => int]
+     */
+    public static function range(): array
+    {
+        return self::dayRange(Carbon::now()->timestamp);
+    }
+
+    /**
+     * Checks if the value is a date of today.
+     *
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue Not used.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the value represents today's date, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
 
-        // Check if $value is a scalar value (string, number, or boolean)
-        if (!is_scalar($value)) {
-            return false; // If not, return false
+        if (is_null($valueTimestamp)) {
+            return false;
         }
 
-        // Convert $value to a timestamp
-        $value = self::convertToTimestamp($value);
+        $range = self::range();
 
-        // Check if the conversion was successful
-        if (is_null($value)) {
-            return false; // If not, return false
-        }
-
-        // Check if the value represents the current day
-        return Carbon::createFromTimestamp($value)->isToday();
+        return $valueTimestamp >= $range['from'] && $valueTimestamp <= $range['to'];
     }
 
     /**
      * Generate a condition array for MongoDB to match the current day.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue Optional search value (not used in this function).
+     * @param mixed $searchValue Not used.
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        // Get the start and end timestamps of the current day
-        $start = Carbon::today()->startOfDay()->timestamp;
-        $end = Carbon::today()->endOfDay()->timestamp;
+        $range = self::range();
 
-        // Construct the condition for MongoDB
-        return [
-            $column => [
-                '$gte' => self::convertToMongoDate($start),
-                '$lte' => self::convertToMongoDate($end)
-            ]
-        ];
+        return self::mongodbDateRange($column, $range['from'], $range['to']);
     }
 
-
     /**
-     * Generate a condition array for the query builder to match the current day.
+     * Generate a condition array for Postgres to match the current day.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue Optional search value (not used in this function).
+     * @param mixed $searchValue Not used.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue = null): array
     {
-        return [new Expression("date($column) = current_date")];
+        $range = self::range();
+
+        return self::postgresqlDateRange($column, $range['from'], $range['to']);
     }
 }

@@ -28,67 +28,61 @@ class NotEqualIntOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if the given numeric values are not equal after converting them to integers.
+     * Checks if the value is a number that is not equal to the search value.
+     * An empty (null / missing) value never matches.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue The search value to be compared against.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue The value to be checked.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the numeric values are not equal after converting them to integers, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $searchNumber = self::convertToNumber($searchValue);
+        $valueNumber = self::convertToNumber(self::getValue($column, $data));
 
-        // Check if both $searchValue and $value are numeric
-        if (!is_numeric($searchValue) || !is_numeric($value)) {
-            return false; // If not, return false
+        if (is_null($searchNumber) || is_null($valueNumber)) {
+            return false;
         }
 
-        // Convert $searchValue and $value to integers
-        $searchValueInt = intval($searchValue);
-        $valueInt = intval($value);
-
-        // Check if the integer values are not equal
-        return $searchValueInt !== $valueInt;
+        return $valueNumber != $searchNumber;
     }
 
     /**
-     * Generate a condition array for MongoDB to match an integer value.
+     * Generate a condition array for MongoDB. `$nin` with null also excludes documents without the column,
+     * the same way phpConditions() rejects an empty value.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The integer value to search for.
-     * @return array The condition array for the MongoDB query.
+     * @param mixed $searchValue The numeric value to exclude.
+     * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is numeric
-        if (!is_numeric($searchValue)) {
-            return [];
+        $searchNumber = self::convertToNumber($searchValue);
+
+        if (is_null($searchNumber)) {
+            return self::mongodbMatchNothing($column);
         }
 
-        // Construct the condition for matching the integer value in the column
-        return [
-            $column => ['$ne' => intval($searchValue)]
-        ];
+        return [$column => ['$nin' => [$searchNumber, null]]];
     }
 
     /**
-     * Generate a condition array for the query builder to match an integer value in Postgres.
+     * Generate a condition array for Postgres (NULL never matches "!=").
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The integer value to search for.
+     * @param mixed $searchValue The numeric value to exclude.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is numeric
-        if (!is_numeric($searchValue)) {
-            return [];
+        $searchNumber = self::convertToNumber($searchValue);
+
+        if (is_null($searchNumber)) {
+            return self::postgresqlMatchNothing();
         }
 
-        // Construct the condition for matching the integer value in the column
-        return ["!=", $column, intval($searchValue)];
+        return ['!=', $column, self::postgresqlNumber($searchNumber)];
     }
 
 }

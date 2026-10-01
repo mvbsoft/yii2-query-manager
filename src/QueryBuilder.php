@@ -153,9 +153,10 @@ class QueryBuilder extends Component {
      */
     public function getOperatorBySlug(string $slug): ?OperatorAbstract
     {
+        // current() of an empty array is false, the declared result for "not found" is null
         return current(array_filter($this->operators, function (OperatorAbstract $operator) use ($slug) {
             return $operator->slug == $slug;
-        }));
+        })) ?: null;
     }
 
     /**
@@ -309,19 +310,11 @@ class QueryBuilder extends Component {
                     continue;
                 }
 
-                if($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
+                if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_GROUP, self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
                     $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
 
-                    foreach ($elementErrors as $ek => $errors){
-                        $errors[$ek] = $errors;
-                    }
-                }
-
-                if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
-                    $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
-
-                    foreach ($elementErrors as $ek => $errors){
-                        $errors[$ek] = $errors;
+                    foreach ($elementErrors as $ek => $nestedErrors){
+                        $errors[$ek] = $nestedErrors;
                     }
                 }
             }
@@ -357,7 +350,7 @@ class QueryBuilder extends Component {
             if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
                 $column      = $element['column'];
                 $operator    = $element['operator'];
-                $searchValue = $element['value'];
+                $searchValue = $element['value'] ?? null;
 
                 $where = $this->generateWhere($operator, $conditionsType, $searchValue, $column, $data);
 
@@ -379,11 +372,14 @@ class QueryBuilder extends Component {
 
                 $eventQuery = $this->generateConditions($eventElements, $conditionsType, $data);
 
-                if($condition == self::OR && !empty($eventQuery->where)){
+                // Not empty(): for PHP a group of one failed condition has where = 0, and it must still count as false
+                $hasWhere = !is_null($eventQuery->where) && $eventQuery->where !== [];
+
+                if($condition == self::OR && $hasWhere){
                     $query->orWhere($eventQuery->where);
                 }
 
-                if($condition == self::AND && !empty($eventQuery->where)){
+                if($condition == self::AND && $hasWhere){
                     $query->andWhere($eventQuery->where);
                 }
             }
@@ -463,9 +459,18 @@ class QueryBuilder extends Component {
         // Get the operator object by slug
         $operator = $this->getOperatorBySlug($operatorSlug);
 
-        // If operator not found, return null
+        // Unknown operator: matches nothing in every backend (like an invalid search value). Skipping it instead
+        // would widen "A AND <unknown>" to just A.
         if(!$operator instanceof OperatorAbstract){
-            return null;
+            if($conditionsType == self::CONDITIONS_TYPE_PHP){
+                return 0;
+            }
+
+            if($conditionsType == self::CONDITIONS_TYPE_MONGODB){
+                return OperatorAbstract::mongodbMatchNothing($column);
+            }
+
+            return OperatorAbstract::postgresqlMatchNothing();
         }
 
         // Generate conditions based on conditions type

@@ -28,71 +28,66 @@ class EqualStringOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if two given values are equal as strings.
+     * Checks if the value equals the search text (case-sensitive). An empty value is read as ''.
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue The value to be checked.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue The text to compare with.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if both values are equal as strings, otherwise returns false.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $value = self::convertToString(self::getValue($column, $data));
 
-        if(is_null($value)){
-            $value = '';
+        if (!is_scalar($searchValue) || is_null($value)) {
+            return false;
         }
 
-        // Check if both $searchValue and $value are scalar values (string, number, or boolean)
-        if (!is_scalar($searchValue) || !is_scalar($value)) {
-            return false; // If not, return false
-        }
-
-        // Compare the string representations of $searchValue and $value
-        return strval($searchValue) === strval($value);
+        return strval($searchValue) === $value;
     }
 
     /**
-     * Generate a condition array for MongoDB to match a string value.
+     * Generate a condition array for MongoDB. Searching for '' also finds empty (null / missing) values.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The string value to search for.
+     * @param mixed $searchValue The text to compare with.
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        // Check if $searchValue is a scalar value (string, number, or boolean)
-        if (!is_scalar($searchValue)) {
-            return [];
+        // Invalid UTF-8 can not be stored, so nothing equals it (MongoDB would reject it with an error)
+        if (!is_scalar($searchValue) || !self::isUtf8(strval($searchValue))) {
+            return self::mongodbMatchNothing($column);
         }
 
-        // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
-        // Construct the condition for matching the string value in the column
-        // MongoDB query format is used here to match documents where the column value is equal to the search value
+        if ($searchValue === '') {
+            return [$column => ['$in' => ['', null]]];
+        }
+
         return [$column => ['$eq' => $searchValue]];
     }
 
     /**
-     * Generate a condition array for the query builder to match a scalar value in Postgres.
+     * Generate a condition array for Postgres. Searching for '' also finds NULL.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The scalar value to search for (string, number, or boolean).
+     * @param mixed $searchValue The text to compare with.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is a scalar value (string, number, or boolean)
-        if (!is_scalar($searchValue)) {
-            return [];
+        if (!is_scalar($searchValue) || !self::isUtf8(strval($searchValue))) {
+            return self::postgresqlMatchNothing();
         }
 
-        // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
-        // Construct the condition for matching the scalar value in the column
+        if ($searchValue === '') {
+            return ['or', [$column => ''], [$column => null]];
+        }
+
         return [$column => $searchValue];
     }
 

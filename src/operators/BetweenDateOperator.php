@@ -3,7 +3,6 @@
 namespace mvbsoft\queryManager\operators;
 
 use mvbsoft\queryManager\OperatorAbstract;
-use yii\db\Expression;
 
 class BetweenDateOperator extends OperatorAbstract
 {
@@ -28,112 +27,93 @@ class BetweenDateOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if a given timestamp falls within a specified range.
+     * Checks if the value is a date within the range (bounds included).
      *
-     * @param string $column The column name (unused in this function).
-     * @param mixed $searchValue An array containing two elements representing the start and end timestamps of the range.
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue ['from' => date, 'to' => date] or [date, date]; dates are timestamps or strtotime() strings.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the timestamp falls within the specified range, false otherwise.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $range = self::_preparedSearchValue($searchValue);
+        $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
 
-        if(empty($preparedSearchValue)){
+        if (empty($range) || is_null($valueTimestamp)) {
             return false;
         }
 
-        // Get value from array
-        $value = self::getValue($column, $data);
-
-        $valueTimestamp = self::convertToTimestamp($value);
-
-        // Check if any of the timestamps couldn't be converted
-        if(is_null($valueTimestamp)){
-            return false; // If any timestamp is invalid, return false
-        }
-
-        // Convert start and end timestamps to Unix timestamp format
-        $fromDate = $preparedSearchValue['from'];
-        $toDate   = $preparedSearchValue['to'];
-
-        // Check if the value falls within the specified range
-        return $valueTimestamp >= $fromDate && $valueTimestamp <= $toDate;
+        return $valueTimestamp >= $range['from'] && $valueTimestamp <= $range['to'];
     }
 
     /**
-     * Constructs a condition for MongoDB database query to find records with a value in the specified column between two timestamps.
+     * Constructs a condition for MongoDB.
      *
-     * @param string $column The column name in the database.
-     * @param mixed $searchValue An array containing two elements representing the start and end timestamps of the range.
+     * @param string $column The column name.
+     * @param mixed $searchValue ['from' => date, 'to' => date] or [date, date].
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $range = self::_preparedSearchValue($searchValue);
 
-        if(empty($preparedSearchValue)){
-            return [];
+        if (empty($range)) {
+            return self::mongodbMatchNothing($column);
         }
 
-        // Construct the condition for MongoDB
-        return [
-            $column => [
-                '$gte' => self::convertToMongoDate($preparedSearchValue['from']),
-                '$lte' => self::convertToMongoDate($preparedSearchValue['to'])
-            ]
-        ];
+        return self::mongodbDateRange($column, $range['from'], $range['to']);
     }
 
-
     /**
-     * Constructs a condition for PostgreSQL database query to find records with a value in the specified column between two timestamps.
+     * Constructs a condition for PostgreSQL.
      *
-     * @param mixed $searchValue An array containing two timestamps to define the range.
-     * @param string $column The column name in the database.
+     * @param string $column The column name.
+     * @param mixed $searchValue ['from' => date, 'to' => date] or [date, date].
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue) : array
     {
-        $preparedSearchValue = self::_preparedSearchValue($searchValue);
+        $range = self::_preparedSearchValue($searchValue);
 
-        if(empty($preparedSearchValue)){
-            return [];
+        if (empty($range)) {
+            return self::postgresqlMatchNothing();
         }
 
-        // Convert start and end timestamps to Unix timestamp format
-        $fromDate = $preparedSearchValue['from'];
-        $toDate   = $preparedSearchValue['to'];
-
-        // Construct the condition for between two timestamps
-        return ['between', $column, new Expression("to_timestamp($fromDate)"), new Expression("to_timestamp($toDate)")];
+        return self::postgresqlDateRange($column, $range['from'], $range['to']);
     }
 
+    /**
+     * Normalizes the range: accepts ['from' => x, 'to' => y] or [x, y] and converts both bounds to timestamps.
+     *
+     * @param mixed $searchValue
+     * @return array ['from' => int, 'to' => int] or an empty array if the range is invalid.
+     */
     private static function _preparedSearchValue($searchValue): array
     {
-        // Check if $searchValue is an array with exactly two elements
-        if (
-            !is_array($searchValue) ||
-            !(
-                (array_key_exists('from', $searchValue) && array_key_exists('to', $searchValue)) ||
-                (array_key_exists(0, $searchValue) && array_key_exists(1, $searchValue))
-            )
-        ) {
+        if (!is_array($searchValue)) {
             return [];
         }
 
-        $fromDate = self::convertToTimestamp($searchValue['from'] ?? $searchValue[0]);
-        $toDate   = self::convertToTimestamp($searchValue['to'] ?? $searchValue[0]);
-
-        // Check if any of the timestamps couldn't be converted
-        if(is_null($fromDate) || is_null($toDate)){
-            return []; // If any timestamp is invalid, return an empty array
+        if (array_key_exists('from', $searchValue) && array_key_exists('to', $searchValue)) {
+            $from = $searchValue['from'];
+            $to = $searchValue['to'];
+        } elseif (array_key_exists(0, $searchValue) && array_key_exists(1, $searchValue)) {
+            $from = $searchValue[0];
+            $to = $searchValue[1];
+        } else {
+            return [];
         }
 
-        // Convert start and end timestamps to Unix timestamp format and return
+        $from = self::convertToSearchTimestamp($from);
+        $to = self::convertToSearchTimestamp($to);
+
+        if (is_null($from) || is_null($to)) {
+            return [];
+        }
+
         return [
-            'from' => $fromDate,
-            'to'   => $toDate
+            'from' => $from,
+            'to'   => $to
         ];
     }
 

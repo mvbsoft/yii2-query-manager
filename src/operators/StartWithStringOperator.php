@@ -7,7 +7,6 @@ use mvbsoft\queryManager\OperatorAbstract;
 
 class StartWithStringOperator extends OperatorAbstract
 {
-
     public static function slug(): string
     {
         return 'start_with_string_operator';
@@ -29,86 +28,66 @@ class StartWithStringOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if a string starts with a specified substring, ignoring case sensitivity.
+     * Checks (case-insensitive) if the value starts with the search text. An empty value is read as ''.
      *
-     * @param mixed $searchValue The substring to search for.
-     * @param string $column The column name (unused in this function).
+     * @param string $column The column name (the value key in the PHP array of data).
+     * @param mixed $searchValue The prefix.
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
-     * @return bool Returns true if the string starts with the specified substring, false otherwise.
+     * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        // Get value from array
-        $value = self::getValue($column, $data);
+        $value = self::convertToString(self::getValue($column, $data));
 
-        if(is_null($value)){
-            $value = '';
-        }
-
-        // Check if both $searchValue and $value are scalar values
-        if (!is_scalar($searchValue) || !is_scalar($value)) {
+        if (!is_scalar($searchValue) || is_null($value)) {
             return false;
         }
 
-        // Convert $searchValue and $value to strings
-        $searchValue = strval($searchValue);
-        $value = strval($value);
-
-        // Escape special characters
-        $escapedSearchValue = preg_quote($searchValue, '/');
-
-        // Check if $value starts with $searchValue using the regular expression pattern
-        return preg_match("/^{$escapedSearchValue}/i", $value) === 1;
+        return self::phpLiteralMatch(strval($searchValue), $value, '^');
     }
 
     /**
-     * Generate a condition array for MongoDB to perform a case-insensitive pattern match for strings starting with a specified substring.
+     * Constructs a condition for MongoDB.
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The substring to search for.
-     * @return array The condition array for MongoDB.
+     * @param mixed $searchValue The prefix.
+     * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue): array
     {
-        // Initialize an empty condition array
-        $condition = [];
-
-        // Check if $searchValue is a scalar value
-        if (!is_scalar($searchValue)) {
-            return $condition; // Return empty condition if $searchValue is not scalar
+        if (!is_scalar($searchValue) || !self::isUtf8(strval($searchValue))) {
+            return self::mongodbMatchNothing($column);
         }
 
-        // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
-        $escapedSearchValue = preg_quote($searchValue, '/');
+        // Every value (an empty one too) starts with an empty string
+        if ($searchValue === '') {
+            return self::mongodbMatchAll($column);
+        }
 
-        // Construct the MongoDB condition for case-insensitive pattern match using regex
-        return [$column => [
-            '$regex' => "^" . $escapedSearchValue,
-            '$options' => 'i'
-        ]];
+        return [$column => new Regex('^' . preg_quote($searchValue, '/'), 'i')];
     }
 
     /**
-     * Generate a condition array for the query builder to perform a case-insensitive pattern match.
+     * Constructs a condition for PostgreSQL (ILIKE 'text%' with % and _ in the text escaped).
      *
      * @param string $column The column name.
-     * @param mixed $searchValue The value to search for.
+     * @param mixed $searchValue The prefix.
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        // Check if $searchValue is a scalar value
-        if (!is_scalar($searchValue)) {
-            return [];
+        if (!is_scalar($searchValue) || !self::isUtf8(strval($searchValue))) {
+            return self::postgresqlMatchNothing();
         }
 
-        // Convert $searchValue to a string
         $searchValue = strval($searchValue);
 
-        // Construct the condition for case-insensitive pattern match using ILIKE
-        return ['ILIKE', $column, "$searchValue%", false];
-    }
+        if ($searchValue === '') {
+            return self::postgresqlMatchAll();
+        }
 
+        return ['ILIKE', $column, self::postgresqlLikeEscape($searchValue) . '%', false];
+    }
 }
