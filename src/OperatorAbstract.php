@@ -144,6 +144,19 @@ abstract class OperatorAbstract extends BaseObject
     abstract public static function postgresqlConditions(string $column, $searchValue) : array;
 
     /**
+     * Checks the search value when conditions are saved (QueryBuilder::validateConditions()).
+     *
+     * By default nothing is checked: an invalid search value just matches nothing at run time.
+     *
+     * @param mixed $searchValue
+     * @return string|null The error message or null if the value is valid.
+     */
+    public static function validateValue($searchValue): ?string
+    {
+        return null;
+    }
+
+    /**
      * Retrieves a value from a PHP array using the specified column name, simulating a database query.
      *
      * @param string $column The column name to retrieve the value from.

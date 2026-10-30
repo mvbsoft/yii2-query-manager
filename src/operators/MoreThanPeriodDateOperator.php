@@ -48,60 +48,89 @@ class MoreThanPeriodDateOperator extends OperatorAbstract
     }
 
     /**
-     * Checks if the value is a date after now + quantity * period
-     * (see LessThanPeriodDateOperator::periodBoundary()).
+     * The first matching second: right after the boundary for a fixed period, the boundary itself for a custom
+     * formula (so two conditions More than + Less than with formulas cover whole days without a gap).
+     * See LessThanPeriodDateOperator::periodBoundary().
+     *
+     * @param mixed $searchValue
+     * @return int|null The UNIX timestamp or null if the search value is invalid.
+     */
+    public static function firstSecond($searchValue): ?int
+    {
+        $boundary = LessThanPeriodDateOperator::periodBoundary($searchValue);
+
+        if (is_null($boundary)) {
+            return null;
+        }
+
+        return LessThanPeriodDateOperator::isCustom($searchValue) ? $boundary : $boundary + 1;
+    }
+
+    /**
+     * See LessThanPeriodDateOperator::validateValue().
+     *
+     * @param mixed $searchValue
+     * @return string|null
+     */
+    public static function validateValue($searchValue): ?string
+    {
+        return LessThanPeriodDateOperator::validateValue($searchValue);
+    }
+
+    /**
+     * Checks if the value is a date after now + quantity * period (from the boundary on for a custom formula).
      *
      * @param string $column The column name (the value key in the PHP array of data).
-     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric|string]
      * @param array $data The data used to generate a query from a PHP array. This array represents a row in the database.
      * @return bool
      */
     public static function phpConditions(string $column, $searchValue, array $data): bool
     {
-        $boundary = LessThanPeriodDateOperator::periodBoundary($searchValue);
+        $firstSecond = self::firstSecond($searchValue);
         $valueTimestamp = self::convertToTimestamp(self::getValue($column, $data));
 
-        if (is_null($boundary) || is_null($valueTimestamp)) {
+        if (is_null($firstSecond) || is_null($valueTimestamp)) {
             return false;
         }
 
-        return $valueTimestamp > $boundary;
+        return $valueTimestamp >= $firstSecond;
     }
 
     /**
-     * Generate a condition array for MongoDB ("after the boundary second", whole-second precision like PHP).
+     * Generate a condition array for MongoDB (whole-second precision like PHP).
      *
      * @param string $column The column name.
-     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric|string]
      * @return array The condition array for the query.
      */
     public static function mongodbConditions(string $column, $searchValue) : array
     {
-        $boundary = LessThanPeriodDateOperator::periodBoundary($searchValue);
+        $firstSecond = self::firstSecond($searchValue);
 
-        if (is_null($boundary)) {
+        if (is_null($firstSecond)) {
             return self::mongodbMatchNothing($column);
         }
 
-        return [$column => ['$gte' => self::convertToMongoDate($boundary + 1)]];
+        return [$column => ['$gte' => self::convertToMongoDate($firstSecond)]];
     }
 
     /**
-     * Generate a condition array for Postgres ("after the boundary second", whole-second precision like PHP).
+     * Generate a condition array for Postgres (whole-second precision like PHP).
      *
      * @param string $column The column name.
-     * @param mixed $searchValue ['period' => string, 'quantity' => numeric]
+     * @param mixed $searchValue ['period' => string, 'quantity' => numeric|string]
      * @return array The condition array for the query.
      */
     public static function postgresqlConditions(string $column, $searchValue): array
     {
-        $boundary = LessThanPeriodDateOperator::periodBoundary($searchValue);
+        $firstSecond = self::firstSecond($searchValue);
 
-        if (is_null($boundary)) {
+        if (is_null($firstSecond)) {
             return self::postgresqlMatchNothing();
         }
 
-        return ['>=', $column, self::postgresqlTimestamp($boundary + 1)];
+        return ['>=', $column, self::postgresqlTimestamp($firstSecond)];
     }
 
     public static function convertPeriodToSeconds(string $period, int $quantity = 1)

@@ -15,7 +15,8 @@
         "yiisoft/yii2": "~2.0.0",
         "nesbot/carbon": "^2.0.0",
         "yiisoft/yii2-mongodb": "~3.0.0",
-        "ext-mongodb": "*"
+        "ext-mongodb": "*",
+        "ext-json": "*"
     },
     "autoload": {
         "psr-4": {

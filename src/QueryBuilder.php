@@ -310,6 +310,15 @@ class QueryBuilder extends Component {
                     continue;
                 }
 
+                if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
+                    $operator = $this->getOperatorBySlug($value['operator']);
+                    $valueError = $operator ? $operator::validateValue($value['value'] ?? null) : null;
+
+                    if(!is_null($valueError)){
+                        $errors["$errorKey.$key.value"] = [$valueError];
+                    }
+                }
+
                 if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_GROUP, self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
                     $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
 

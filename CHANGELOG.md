@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.0
+
+### Added
+- Custom period for `less_than_period_date_operator` / `more_than_period_date_operator`:
+  `{"period": "custom", "quantity": "<formula>"}` with units `y mo w d h m s`, `+ - * /`, brackets and functions.
+- `shift(start, offset, step[, timezone])` — a boundary that moves by a step on a schedule, on the clock of an IANA
+  timezone (UTC by default).
+- `LessThanPeriodDateOperator::registerFunction()` to add formula functions.
+- `OperatorAbstract::validateValue()`; `QueryBuilder::validateConditions()` reports an invalid custom formula.
+
+### Unchanged
+- Fixed periods behave exactly as before (more than still excludes the boundary second).
+
 ## 1.1.0
 
 PHP, MongoDB and PostgreSQL conditions of every operator now select exactly the same rows. The public API is unchanged

@@ -166,6 +166,58 @@ A date is a UNIX timestamp or any string `strtotime()` understands (`2026-09-16`
 between `0001-01-01 00:00:00 UTC` and `9999-12-31 23:59:59 UTC` (timestamps -62135596800…253402300799).
 Periods: `seconds`, `minutes`, `hours`, `days`, `weeks`, `months` (30 days), `years` (365 days); the quantity is a whole number.
 
+#### Custom period (formula)
+
+With `{"period": "custom", "quantity": "<formula>"}` the boundary is calculated by a formula. The boundary is
+excluded by `less_than_period_date_operator` and **included** by `more_than_period_date_operator`, so a range written
+as two conditions (more than + less than) covers whole days with no gap between neighbouring ranges.
+
+| Element | Example | Meaning |
+|---|---|---|
+| Units | `y` `mo` `w` `d` `h` `m` `s` | year = 365 days, month = 30 days |
+| Arithmetic | `+ - * /`, `( )` | `-(1w + 2d) / 2` is 4.5 days ago |
+| Duration | `-10d - 2h` | now minus 10 days and 2 hours |
+| Function | `shift("2026-10-15", "-10d", "-3d", "Europe/Kyiv")` | a date; `shift(...) + 1h` is allowed |
+
+A formula of durations is added to now; a formula with a function is a date. A date can be moved by a duration and two
+dates can be subtracted (a duration); `date * number`, `date + date` and a plain number without a unit are errors.
+
+`shift(start, offset, step[, timezone])` = start + offset + step × N, where N is the number of whole step units passed
+since start (0 before start). The step is one signed unit: `"-3d"` moves the boundary 3 days back once a day, `"+2h"`
+2 hours forward once an hour, `"-1w"` a week back once a week, `"0d"` never. Start: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`,
+`YYYY-MM-DD HH`, `YYYY-MM-DD HH:MM`, `YYYY-MM-DD HH:MM:SS` (missing parts are the minimum) or a UNIX timestamp
+of 5+ digits (`"1792022400"`; `"20261015"` is a timestamp too, write `"2026-10-15"`). Function arguments are always in
+quotes.
+
+The timezone is an IANA name (`"Europe/Kyiv"`, `"America/Toronto"`, any letter case) or `"UTC"`, the default. Fixed
+offsets (`"+03:00"`) and abbreviations (`"EST"`) are errors: they do not follow daylight saving time. The start,
+offset, step and N are counted on the clock of the timezone and only the result is converted to UTC, so a boundary
+with the start at 16:00 and the step `"-3d"` moves at 16:00 of that timezone in summer and in winter (a local day of
+the clock change is 23 or 25 hours). An hourly step follows the clock as well: on the night of the change one step is
+0 or 2 real hours. A step counts once the clock first shows its time, so the boundary never moves back while the
+clocks repeat an hour. A local time is the moment the clock first shows it: a time that happens twice when the clocks
+go back is the first one, a time skipped when they go forward is the moment they jump (03:30 in Kyiv on 2026-03-29,
+when 03:00 becomes 04:00, is 04:00). A timestamp start is a moment, also inside a repeated hour; the timezone then
+only sets when the steps happen. `Etc/GMT+3` and the like are fixed offsets and are rejected too.
+
+```php
+// Today (Oct 15) select Oct 5-7, tomorrow Oct 2-4, ... (days start at midnight in Kyiv)
+['operator' => 'more_than_period_date_operator', 'value' => ['period' => 'custom', 'quantity' => 'shift("2026-10-15", "-10d", "-3d", "Europe/Kyiv")']],
+['operator' => 'less_than_period_date_operator', 'value' => ['period' => 'custom', 'quantity' => 'shift("2026-10-15", "-7d", "-3d", "Europe/Kyiv")']],
+```
+
+More functions can be added (a name of letters, digits and `_`, `shift` is reserved); the handler gets the arguments
+(strings) and the current timestamp and returns a date. An exception of the handler makes the formula invalid:
+
+```php
+LessThanPeriodDateOperator::registerFunction('daysAgo', function (array $arguments, int $now) {
+    return $now - 86400 * (int)($arguments[0] ?? 0);
+});
+```
+
+`QueryBuilder::validateConditions()` reports an invalid formula under the `value` key of the condition
+(`OperatorAbstract::validateValue()`); at run time an invalid formula matches nothing.
+
 ### Behaviour shared by PHP, MongoDB and PostgreSQL
 
 The three condition types select exactly the same rows:
