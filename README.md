@@ -92,6 +92,85 @@ before executing queries.
 $errors = $queryBuilder->validateConditions($queryElements);
 ```
 
+### History search
+
+Some data is a **history**: a list of records kept under one key (e.g. every arrival of an event). A **history block**
+holds conditions on the fields of the records (`<key>.<field>`) and means **"there is a record where all conditions of
+the block match"**. Two separate blocks of one history may match in different records. The logic is in `HistoryBlock`;
+`QueryBuilder::historyBlock()` connects element types to it. Today the only one is the event block, below.
+
+**A record** is an object, the same in every backend:
+
+```json
+{"_id": 245, "_modify_time": "2026-11-10T15:30:00Z", "product": "Silver", "price": 149.99}
+```
+
+Where the records are:
+
+| Backend | Data |
+|---|---|
+| MongoDB | the key of the document is the array of records: `{"purchase": [{...}, {...}]}` (`$elemMatch`) |
+| PHP | `$data['purchase'] = [[...], [...]]` — the key holds the list of records, field keys without the prefix. If the key is absent, the block is checked on flat data of one record (`$data['purchase.product']`), as ordinary conditions. A present key is read like MongoDB reads the field: only a list of arrays is a list of records; `null`, `[]`, a string, a number, an associative array have no records. To check the history, always put the key: `$data['purchase'] = $document['purchase'] ?? null` |
+| PostgreSQL 16+ | the row has a `jsonb` column named after the key with the array of records, exactly as in MongoDB (`EXISTS` over its elements). It can be stored in a table or built by the query (subquery, CTE). The column is referenced without a table name (`"purchase"`); if several tables of the query have it, prepare it in a subquery. The key may contain only letters, digits, `_` and `-` (`QueryBuilderException` otherwise) |
+
+Rules of a history block:
+
+| | |
+|---|---|
+| `"matching": false` | **not matching**: no record matches (also true when there is no data under the key) |
+| empty block (no condition inside) | "there is data under the key", see below; negated by `"matching": false` |
+| operators without history support | `OperatorAbstract::history()` is `false` for `time_range_operator` and `days_of_week_operator` (MongoDB forbids `$expr` inside `$elemMatch`). The flag is in the operator list (`toArray['history']`), so a UI can hide them in a history block; inside a history search `validateConditions()` rejects them (error on `operator`); at run time they match nothing in MongoDB, PostgreSQL and on a PHP list of records (on flat PHP data as usual) |
+| columns | inside a block (MongoDB, PostgreSQL, and PHP when the data holds the key) every column must start with `<key>.` — the prefix is cut to address the field inside a record — and the block can not contain another event or `nodes` block; otherwise a `QueryBuilderException`. Field names are flat: a nested path (`purchase.address.city`) works only in MongoDB |
+
+Store every value with the type of its field, as required in "Behaviour shared by PHP, MongoDB and PostgreSQL": in
+PostgreSQL a value of another JSON type than the operator expects is "no value" (a number matches number operators only
+as a JSON number, a text as a string, a boolean as `true` / `false`); for such values the backends can disagree on
+negative operators (`not_equal_int_operator` on `"abc"`), as with ordinary conditions. In PostgreSQL a date is a string
+in ISO 8601 with a timezone (`"2026-11-10T15:30:00Z"`), checked with `pg_input_is_valid` (PostgreSQL 16+); in MongoDB
+it is a BSON date; PHP reads any form `strtotime()` understands. A record is an object: scalar elements of the array
+are skipped in every backend; nested arrays are not supported.
+
+**Empty block** — "there is data under the key": a non-empty array (records) or a non-empty object (data stored
+without history); everything else is "no data": no key, `null`, a string (also `""`), a number, `[]`, `{}`.
+
+| Where | There is data under the key |
+|---|---|
+| MongoDB | `{"$or": [{"<key>.0": {"$exists": true}}, {"<key>": {"$type": "object", "$ne": {}}}]}` |
+| PHP, the key in the data (history only) | a non-empty array |
+| PHP, flat data | there is at least one `<key>.*` key |
+| PostgreSQL, history | the `jsonb` column is a non-empty array or a non-empty object |
+| PostgreSQL, no history | not checked: the block is skipped (the columns belong to a table) |
+
+Example: clients A (no purchases), B (Gold), C (Gold, then Silver), D (Silver):
+
+| Block | Matches |
+|---|---|
+| `product = Gold` | B, C |
+| `product != Gold` | C, D (there is a purchase that is not Gold) |
+| `product = Gold`, `"matching": false` | A, D (no Gold purchase) |
+| empty block | B, C, D |
+
+### Event history
+
+An event block (an element with `"type": "event"`) holds conditions on the fields of one event (`purchase.product`).
+By default an event has one set of values, and the block conditions are checked like any other conditions.
+
+With `eventHistory` an event block is a **history block**: the key is the event name, the records are arrivals of the
+event.
+
+```php
+$queryBuilder = new QueryBuilder(['eventHistory' => true]);
+```
+
+| | Without `eventHistory` (default) | With `eventHistory` |
+|---|---|---|
+| event block | conditions as usual | history search: all conditions in **one arrival** |
+| `"matching": false` on the block | removed by `filterConditions()`, ignored | not matching |
+| empty block | "the client has data of the event" (the empty block rule above, PostgreSQL skips it) | the same, negated by `"matching": false` |
+| `filterConditions()` | as before | keeps `matching` of event blocks, filters nested elements too |
+| `validateConditions()` | as before | `matching` must be a boolean (a missing key means `true`); operators without history support are rejected inside an event block |
+| blocks of `"type": "nodes"` and everything inside them | as before | as before |
+
 ### Example Usage of Conditions
 
 Here's an example array of conditions that can be used to generate queries. This array includes various operators along with their corresponding values:

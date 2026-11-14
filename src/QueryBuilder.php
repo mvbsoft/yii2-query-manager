@@ -41,6 +41,23 @@ class QueryBuilder extends Component {
     public const CONDITIONS_ELEMENT_KEYS_INDIVIDUAL = ['id', 'condition', 'column', 'type', 'operator', 'value'];
     public const CONDITIONS_ELEMENT_KEYS_INDIVIDUAL_REQUIRED = ['id', 'condition', 'column', 'type', 'operator'];
 
+    /** Extra key of an event block with event history: false negates the block ("not matching") */
+    public const CONDITIONS_ELEMENT_KEY_MATCHING = 'matching';
+
+    /**
+     * @var bool Event history: an event holds a history (a list of its arrivals), and an event block
+     * (`type: event`) is a history search — "there is an arrival where all conditions of the block match" (see
+     * HistoryBlock), `matching: false` negates the block. Off by default: everything works as before, except an
+     * empty event block. Blocks of type `nodes` are never affected.
+     */
+    public $eventHistory = false;
+
+    /** @var int Depth of `nodes` blocks being handled: inside one everything keeps the old behaviour */
+    private $_nodesDepth = 0;
+
+    /** @var int Depth of history searches being validated: inside one only operators with history support are valid */
+    private $_historyDepth = 0;
+
     /**
      * @var string The folder path containing operator classes.
      */
@@ -182,6 +199,25 @@ class QueryBuilder extends Component {
     }
 
     /**
+     * Creates a dynamic model for an event conditions with event history: the event model plus `matching`.
+     *
+     * @return DynamicModel
+     */
+    public function eventHistoryModel(): DynamicModel
+    {
+        $model = $this->eventModel();
+
+        $model->defineAttribute(self::CONDITIONS_ELEMENT_KEY_MATCHING);
+        // Not skipped on empty values: "" or [] would otherwise pass and negate nothing explicitly; null = no key
+        $model->addRule([self::CONDITIONS_ELEMENT_KEY_MATCHING], 'boolean', ['strict' => true, 'trueValue' => true,
+            'falseValue' => false, 'skipOnEmpty' => false, 'when' => function (DynamicModel $model) {
+                return !is_null($model->{self::CONDITIONS_ELEMENT_KEY_MATCHING});
+            }]);
+
+        return $model;
+    }
+
+    /**
      * Creates a dynamic model for a group conditions.
      *
      * @return DynamicModel A dynamic model for a group conditions.
@@ -236,6 +272,22 @@ class QueryBuilder extends Component {
      */
     public function filterConditions(array $elements): array
     {
+        if($this->eventHistory){
+            return $this->filterConditionsWithHistory($elements);
+        }
+
+        return $this->filterConditionsWithoutHistory($elements);
+    }
+
+    /**
+     * filterConditions() without event history: unchanged old behaviour (nested elements of groups and blocks are
+     * not filtered: the element itself is passed to the recursion instead of its elements).
+     *
+     * @param array $elements The array of query elements.
+     * @return array The array filtered conditions elements
+     */
+    private function filterConditionsWithoutHistory(array $elements): array
+    {
         foreach ($elements as $k => $element){
             $type = $element['type'] ?? null;
 
@@ -248,14 +300,54 @@ class QueryBuilder extends Component {
                 // Removing the extra keys
                 $element = array_intersect_key($element, array_flip(self::CONDITIONS_ELEMENT_KEYS_GROUP));
 
-                $element = $this->filterConditions($element);
+                $element = $this->filterConditionsWithoutHistory($element);
             }
 
             if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
                 // Removing the extra keys
                 $element = array_intersect_key($element, array_flip(self::CONDITIONS_ELEMENT_KEYS_EVENT));
 
-                $element = $this->filterConditions($element);
+                $element = $this->filterConditionsWithoutHistory($element);
+            }
+
+            $elements[$k] = $element;
+        }
+
+        return $elements;
+    }
+
+    /**
+     * filterConditions() with event history: an event block keeps `matching`, and nested elements are filtered.
+     * A block of type `nodes` is filtered the old way (filterConditionsWithoutHistory()).
+     *
+     * @param array $elements The array of query elements.
+     * @return array The array filtered conditions elements
+     */
+    private function filterConditionsWithHistory(array $elements): array
+    {
+        $keys = [
+            self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL => self::CONDITIONS_ELEMENT_KEYS_INDIVIDUAL,
+            self::CONDITIONS_ELEMENT_TYPE_GROUP      => self::CONDITIONS_ELEMENT_KEYS_GROUP,
+            self::CONDITIONS_ELEMENT_TYPE_EVENT      => array_merge(self::CONDITIONS_ELEMENT_KEYS_EVENT, [self::CONDITIONS_ELEMENT_KEY_MATCHING]),
+        ];
+
+        foreach ($elements as $k => $element){
+            $type = is_array($element) && is_string($element['type'] ?? null) ? $element['type'] : null;
+
+            if($type == self::CONDITIONS_ELEMENT_TYPE_NODES){
+                $elements[$k] = $this->filterConditionsWithoutHistory([$element])[0];
+
+                continue;
+            }
+
+            if(!isset($keys[$type])){
+                continue;
+            }
+
+            $element = array_intersect_key($element, array_flip($keys[$type]));
+
+            if(is_array($element['elements'] ?? null)){
+                $element['elements'] = $this->filterConditionsWithHistory($element['elements']);
             }
 
             $elements[$k] = $element;
@@ -291,6 +383,9 @@ class QueryBuilder extends Component {
                 elseif($type == self::CONDITIONS_ELEMENT_TYPE_GROUP){
                     $model = $this->groupModel();
                 }
+                elseif($this->isHistorySearch($value)){
+                    $model = $this->eventHistoryModel();
+                }
                 elseif(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
                     $model = $this->eventModel();
                 }
@@ -317,10 +412,16 @@ class QueryBuilder extends Component {
                     if(!is_null($valueError)){
                         $errors["$errorKey.$key.value"] = [$valueError];
                     }
+
+                    if($this->_historyDepth > 0 && $operator && !$operator::history()){
+                        $errors["$errorKey.$key.operator"] = ["The operator is not supported in a history search."];
+                    }
                 }
 
                 if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_GROUP, self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
-                    $elementErrors = $this->validateConditions($value['elements'], "$errorKey.$key.elements");
+                    $elementErrors = $this->nested($value, function () use ($value, $errorKey, $key) {
+                        return $this->validateConditions($value['elements'], "$errorKey.$key.elements");
+                    });
 
                     foreach ($elementErrors as $ek => $nestedErrors){
                         $errors[$ek] = $nestedErrors;
@@ -365,36 +466,139 @@ class QueryBuilder extends Component {
 
                 if ((is_array($where) && !empty($where)) || (!is_array($where) && !is_null($where)))
                 {
-                    if($condition == self::OR){
-                        $query->orWhere($where);
-                    }
-
-                    if($condition == self::AND){
-                        $query->andWhere($where);
-                    }
+                    $this->addWhere($query, $condition, $where);
                 }
+            }
+
+            // Handle event blocks with event history, and empty event blocks
+            $historyBlock = $this->historyBlock($element);
+
+            if(!is_null($historyBlock)){
+                $where = $historyBlock->where($conditionsType, $data);
+
+                if(!is_null($where)){
+                    $this->addWhere($query, $condition, $where);
+                }
+
+                continue;
             }
 
             // Handle event elements
             if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES, self::CONDITIONS_ELEMENT_TYPE_GROUP])){
                 $eventElements = $element['elements'];
 
-                $eventQuery = $this->generateConditions($eventElements, $conditionsType, $data);
+                $eventQuery = $this->nested($element, function () use ($eventElements, $conditionsType, $data) {
+                    return $this->generateConditions($eventElements, $conditionsType, $data);
+                });
 
                 // Not empty(): for PHP a group of one failed condition has where = 0, and it must still count as false
                 $hasWhere = !is_null($eventQuery->where) && $eventQuery->where !== [];
 
-                if($condition == self::OR && $hasWhere){
-                    $query->orWhere($eventQuery->where);
-                }
-
-                if($condition == self::AND && $hasWhere){
-                    $query->andWhere($eventQuery->where);
+                if($hasWhere){
+                    $this->addWhere($query, $condition, $eventQuery->where);
                 }
             }
         }
 
         return $query;
+    }
+
+    /**
+     * Adds a condition to the query with AND / OR (any other value of the element `condition` adds nothing).
+     *
+     * @param PostgresqlQuery|MongodbQuery $query
+     * @param mixed $condition AND or OR (not type-hinted: any stored value adds nothing, as before).
+     * @param mixed $where
+     */
+    private function addWhere($query, $condition, $where)
+    {
+        if($condition == self::OR){
+            $query->orWhere($where);
+        }
+
+        if($condition == self::AND){
+            $query->andWhere($where);
+        }
+    }
+
+    /**
+     * Whether the element is a history search (its data is a list of records, see HistoryBlock).
+     *
+     * This is where element types are connected to history search; today only event blocks, turned on by
+     * `$eventHistory`. Another type gets history search by answering true here (with its own setting) and by its
+     * history key in historyBlock(). Never a block of type `nodes` or anything inside one: those keep the old behaviour.
+     *
+     * @param array $element The query element.
+     * @return bool
+     */
+    private function isHistorySearch(array $element): bool
+    {
+        return ($element['type'] ?? null) == self::CONDITIONS_ELEMENT_TYPE_EVENT && $this->_nodesDepth == 0 && $this->eventHistory;
+    }
+
+    /**
+     * The HistoryBlock for an element, or null when the element keeps the old handling.
+     *
+     * An event block: the history key is the event name, records are arrivals of the event. With history search
+     * (isHistorySearch()) every event block is handled here; without it only an empty event block ("the client has
+     * data of the event").
+     *
+     * @param array $element The query element.
+     * @return HistoryBlock|null
+     */
+    private function historyBlock(array $element): ?HistoryBlock
+    {
+        if(($element['type'] ?? null) != self::CONDITIONS_ELEMENT_TYPE_EVENT || $this->_nodesDepth > 0){
+            return null;
+        }
+
+        $key = $element['event'] ?? null;
+        $elements = $element['elements'] ?? [];
+
+        // A malformed block (no event name) keeps the old behaviour too
+        if(!is_string($key) || $key === '' || !is_array($elements)){
+            return null;
+        }
+
+        $history = $this->isHistorySearch($element);
+
+        if(!$history && HistoryBlock::hasConditions($elements)){
+            return null;
+        }
+
+        // Without history `matching` is ignored, as before; only an explicit false negates the block
+        $matching = !$history || ($element[self::CONDITIONS_ELEMENT_KEY_MATCHING] ?? true) !== false;
+
+        return new HistoryBlock($this, $key, $elements, $history, $matching);
+    }
+
+    /**
+     * Runs the callback that handles the children of the element, marking where they are: inside a block of type
+     * `nodes` (old behaviour) or inside a history search (validation of the operators).
+     *
+     * @param array $element The element whose children the callback handles.
+     * @param callable $callback
+     * @return mixed The result of the callback.
+     */
+    private function nested(array $element, callable $callback)
+    {
+        if(($element['type'] ?? null) == self::CONDITIONS_ELEMENT_TYPE_NODES){
+            $depth = '_nodesDepth';
+        }
+        elseif($this->isHistorySearch($element)){
+            $depth = '_historyDepth';
+        }
+        else{
+            return $callback();
+        }
+
+        $this->$depth++;
+
+        try {
+            return $callback();
+        } finally {
+            $this->$depth--;
+        }
     }
 
     /**
@@ -406,17 +610,28 @@ class QueryBuilder extends Component {
      */
     public function phpQuery(array $queryElements, array $data): bool
     {
-        // Create a query builder instance
-        $queryBuilder = new \yii\db\QueryBuilder(new Connection());
-
         // Generate the conditions for the query
         $query = $this->generateConditions($queryElements,  self::CONDITIONS_TYPE_PHP,  $data);
+
+        return $this->evaluatePhpWhere($query->where);
+    }
+
+    /**
+     * Evaluates the PHP conditions built by generateConditions() (a tree of 1 / 0 joined by AND / OR).
+     *
+     * @param mixed $where The `where` of the generated query.
+     * @return bool False for an empty condition.
+     */
+    public function evaluatePhpWhere($where): bool
+    {
+        // Create a query builder instance
+        $queryBuilder = new \yii\db\QueryBuilder(new Connection());
 
         // Initialize parameters array
         $params = [];
 
         // Build the WHERE clause of the query
-        $buildWhere = $queryBuilder->buildWhere($query->where, $params);
+        $buildWhere = $queryBuilder->buildWhere($where, $params);
 
         // Replace placeholders and logical operators in the WHERE clause
         $buildWhere = str_replace(["WHERE ", "(1)", "(0)", "AND", "OR"], ["", 1, 0, "&&", "||"], $buildWhere);

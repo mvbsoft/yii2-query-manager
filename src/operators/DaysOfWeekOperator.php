@@ -29,6 +29,16 @@ class DaysOfWeekOperator extends OperatorAbstract
     }
 
     /**
+     * Not inside a history block: the MongoDB condition is built on `$expr`, which `$elemMatch` forbids.
+     *
+     * @return bool
+     */
+    public static function history(): bool
+    {
+        return false;
+    }
+
+    /**
      * Checks if the value is a date that falls on one of the given weekdays (0 = Sunday ... 6 = Saturday),
      * in the PHP default timezone. An empty value never matches.
      *

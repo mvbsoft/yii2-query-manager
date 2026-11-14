@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+- `QueryBuilder::$eventHistory` (off by default): an event holds a list of arrivals and an event block means "there is
+  an arrival where all conditions of the block match" — `$elemMatch` in MongoDB, `EXISTS` over a `jsonb` column of
+  the event in PostgreSQL 16+, any arrival of `$data['<event>']` in PHP. `"matching": false` on an event block
+  negates it (no arrival matches). `time_range_operator` / `days_of_week_operator` inside a block match nothing
+  (except on flat PHP data of one arrival). See README → "Event history".
+- History search as a reusable part: `HistoryBlock` checks a block against a list of records kept under one key
+  (MongoDB field, PostgreSQL `jsonb` column, PHP data key); `QueryBuilder::historyBlock()` connects element types to
+  it — today event blocks. See README → "History search".
+- `OperatorAbstract::history()`: whether an operator works in a history search (`false` for `time_range_operator`
+  and `days_of_week_operator`); also returned by `toArray` as `history`, so a UI can hide such operators. Inside a
+  history search `validateConditions()` rejects them.
+- `QueryBuilder::evaluatePhpWhere()`, `QueryBuilder::eventHistoryModel()`.
+
+### Changed — behaviour that changes results (with and without `eventHistory`)
+- An empty event block (no condition inside) means "the client has data of the event" in MongoDB and PHP. Before,
+  the block was dropped: every client passed, and a filter of only empty blocks selected everyone in MongoDB but
+  nobody in PHP. In PostgreSQL without `eventHistory` the block is still dropped.
+
+### Unchanged
+- The operator list (`toArray`) only gains the `history` key.
+- Without `eventHistory` everything else works exactly as before (operators, groups, client conditions, validation,
+  `filterConditions()`, PostgreSQL).
+- Blocks of type `nodes` and everything inside them are never affected, also with `eventHistory`.
+
 ## 1.2.0
 
 ### Added

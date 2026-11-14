@@ -18,7 +18,7 @@ use yii\db\Expression;
  * @property-read string $slug - operator slug
  * @property-read string $group - operator group
  *
- * @property-read array $toArray - return "name" "description" "slug" "group" as array with the same keys
+ * @property-read array $toArray - return "name" "description" "slug" "group" "history" as array with the same keys
  */
 abstract class OperatorAbstract extends BaseObject
 {
@@ -60,6 +60,19 @@ abstract class OperatorAbstract extends BaseObject
      * @return string The description of the operator.
      */
     abstract public static function description() : string;
+
+    /**
+     * Whether the operator works inside a history block (a search over records, see HistoryBlock).
+     *
+     * An operator that does not is rejected by QueryBuilder::validateConditions() inside a history block and matches
+     * nothing there at run time.
+     *
+     * @return bool
+     */
+    public static function history(): bool
+    {
+        return true;
+    }
 
     /**
      * Get the slug of the operator.
@@ -111,7 +124,8 @@ abstract class OperatorAbstract extends BaseObject
             'slug' => $this->slug,
             'group' => $this->group,
             'name' => $this->name,
-            'description' => $this->description
+            'description' => $this->description,
+            'history' => static::history(),
         ];
     }
 
