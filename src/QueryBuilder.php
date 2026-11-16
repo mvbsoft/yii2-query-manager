@@ -55,9 +55,6 @@ class QueryBuilder extends Component {
     /** @var int Depth of `nodes` blocks being handled: inside one everything keeps the old behaviour */
     private $_nodesDepth = 0;
 
-    /** @var int Depth of history searches being validated: inside one only operators with history support are valid */
-    private $_historyDepth = 0;
-
     /**
      * @var string The folder path containing operator classes.
      */
@@ -207,12 +204,10 @@ class QueryBuilder extends Component {
     {
         $model = $this->eventModel();
 
+        // Any value is accepted: only `false` itself negates the block, everything else (no key, null,
+        // "false", 0) means matching, the same rule as generateConditions()
         $model->defineAttribute(self::CONDITIONS_ELEMENT_KEY_MATCHING);
-        // Not skipped on empty values: "" or [] would otherwise pass and negate nothing explicitly; null = no key
-        $model->addRule([self::CONDITIONS_ELEMENT_KEY_MATCHING], 'boolean', ['strict' => true, 'trueValue' => true,
-            'falseValue' => false, 'skipOnEmpty' => false, 'when' => function (DynamicModel $model) {
-                return !is_null($model->{self::CONDITIONS_ELEMENT_KEY_MATCHING});
-            }]);
+        $model->addRule([self::CONDITIONS_ELEMENT_KEY_MATCHING], 'safe');
 
         return $model;
     }
@@ -269,6 +264,7 @@ class QueryBuilder extends Component {
      *
      * @param array $elements The array of query elements.
      * @return array The array filtered conditions elements
+     * @throws QueryBuilderException The filter of a `nodes` block returned no element (with event history).
      */
     public function filterConditions(array $elements): array
     {
@@ -322,6 +318,7 @@ class QueryBuilder extends Component {
      *
      * @param array $elements The array of query elements.
      * @return array The array filtered conditions elements
+     * @throws QueryBuilderException The filter of a `nodes` block returned no element.
      */
     private function filterConditionsWithHistory(array $elements): array
     {
@@ -335,7 +332,13 @@ class QueryBuilder extends Component {
             $type = is_array($element) && is_string($element['type'] ?? null) ? $element['type'] : null;
 
             if($type == self::CONDITIONS_ELEMENT_TYPE_NODES){
-                $elements[$k] = $this->filterConditionsWithoutHistory([$element])[0];
+                $filtered = $this->filterConditionsWithoutHistory([$element]);
+
+                if(!array_key_exists(0, $filtered)){
+                    throw new QueryBuilderException('The filter of a "nodes" block returned no element.');
+                }
+
+                $elements[$k] = $filtered[0];
 
                 continue;
             }
@@ -359,11 +362,27 @@ class QueryBuilder extends Component {
     /**
      * Validates query conditions.
      *
+     * Inside a history search (an event block with `$eventHistory`) every column must start with `<event>.`, the
+     * block can not contain another event or `nodes` block, and operators without history support are rejected.
+     *
      * @param array $elements The array of query elements.
      * @param string $errorKey The main error key.
      * @return array The array of errors or empty array if there are no errors.
      */
     public function validateConditions(array $elements, string $errorKey = 'conditions'): array
+    {
+        return $this->validateElements($elements, $errorKey, null);
+    }
+
+    /**
+     * validateConditions() of elements that are inside the history search of $historyEvent (null: outside one).
+     *
+     * @param array $elements
+     * @param string $errorKey
+     * @param string|null $historyEvent
+     * @return array
+     */
+    private function validateElements(array $elements, string $errorKey, ?string $historyEvent): array
     {
         $errors = [];
 
@@ -375,6 +394,9 @@ class QueryBuilder extends Component {
             }
             elseif (!in_array($type, self::conditionsElementsTypes())){
                 $errors["$errorKey.$key.type"] = ["Type is invalid."];
+            }
+            elseif (!is_null($historyEvent) && in_array($type, [self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
+                $errors["$errorKey.$key.type"] = ["The event block \"$historyEvent\" can not contain another block."];
             }
             else{
                 if($type == self::CONDITIONS_ELEMENT_TYPE_INDIVIDUAL){
@@ -413,14 +435,21 @@ class QueryBuilder extends Component {
                         $errors["$errorKey.$key.value"] = [$valueError];
                     }
 
-                    if($this->_historyDepth > 0 && $operator && !$operator::history()){
+                    if(!is_null($historyEvent) && $operator && !$operator::history()){
                         $errors["$errorKey.$key.operator"] = ["The operator is not supported in a history search."];
+                    }
+
+                    if(!is_null($historyEvent) && strpos($value['column'], "$historyEvent.") !== 0){
+                        $errors["$errorKey.$key.column"] = ["The column of the event block \"$historyEvent\" must start with \"$historyEvent.\"."];
                     }
                 }
 
                 if(in_array($type, [self::CONDITIONS_ELEMENT_TYPE_GROUP, self::CONDITIONS_ELEMENT_TYPE_EVENT, self::CONDITIONS_ELEMENT_TYPE_NODES])){
-                    $elementErrors = $this->nested($value, function () use ($value, $errorKey, $key) {
-                        return $this->validateConditions($value['elements'], "$errorKey.$key.elements");
+                    // The model has checked that `event` is a string
+                    $nestedEvent = $this->isHistorySearch($value) ? $value['event'] : $historyEvent;
+
+                    $elementErrors = $this->nested($value, function () use ($value, $errorKey, $key, $nestedEvent) {
+                        return $this->validateElements($value['elements'], "$errorKey.$key.elements", $nestedEvent);
                     });
 
                     foreach ($elementErrors as $ek => $nestedErrors){
@@ -573,8 +602,8 @@ class QueryBuilder extends Component {
     }
 
     /**
-     * Runs the callback that handles the children of the element, marking where they are: inside a block of type
-     * `nodes` (old behaviour) or inside a history search (validation of the operators).
+     * Runs the callback that handles the children of the element, marking when they are inside a block of type
+     * `nodes` (old behaviour).
      *
      * @param array $element The element whose children the callback handles.
      * @param callable $callback
@@ -582,22 +611,16 @@ class QueryBuilder extends Component {
      */
     private function nested(array $element, callable $callback)
     {
-        if(($element['type'] ?? null) == self::CONDITIONS_ELEMENT_TYPE_NODES){
-            $depth = '_nodesDepth';
-        }
-        elseif($this->isHistorySearch($element)){
-            $depth = '_historyDepth';
-        }
-        else{
+        if(($element['type'] ?? null) != self::CONDITIONS_ELEMENT_TYPE_NODES){
             return $callback();
         }
 
-        $this->$depth++;
+        $this->_nodesDepth++;
 
         try {
             return $callback();
         } finally {
-            $this->$depth--;
+            $this->_nodesDepth--;
         }
     }
 

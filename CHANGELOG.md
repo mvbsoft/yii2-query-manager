@@ -1,13 +1,21 @@
 # Changelog
 
-## 1.3.0
+## 1.3.0 (unreleased)
 
 ### Added
 - `QueryBuilder::$eventHistory` (off by default): an event holds a list of arrivals and an event block means "there is
   an arrival where all conditions of the block match" — `$elemMatch` in MongoDB, `EXISTS` over a `jsonb` column of
   the event in PostgreSQL 16+, any arrival of `$data['<event>']` in PHP. `"matching": false` on an event block
-  negates it (no arrival matches). `time_range_operator` / `days_of_week_operator` inside a block match nothing
-  (except on flat PHP data of one arrival). See README → "Event history".
+  negates it (no arrival matches); only `false` itself negates, any other value (no key, `null`, `"false"`, `0`) means
+  matching and is accepted by `validateConditions()`. `time_range_operator` / `days_of_week_operator` inside a block match nothing.
+  An empty block means "there is at least one arrival": a non-empty list (`"<event>.0": {"$exists": true}` in
+  MongoDB, a non-empty `jsonb` array in PostgreSQL). See README → "Event history".
+- With `eventHistory` PHP reads an event only from `$data['<event>']`: no key, `null` and `[]` are no arrivals, flat
+  `<event>.<field>` keys are not read, and any other value (not a list, or a list with an element that is not an
+  array) is a `QueryBuilderException` naming the event.
+- With `eventHistory` `validateConditions()` also checks the inside of an event block: every column must start with
+  `<event>.` (error on `column`), and another event or `nodes` block is rejected (error on `type`). At run time such a
+  block with conditions throws a `QueryBuilderException`, before the PHP data is read.
 - History search as a reusable part: `HistoryBlock` checks a block against a list of records kept under one key
   (MongoDB field, PostgreSQL `jsonb` column, PHP data key); `QueryBuilder::historyBlock()` connects element types to
   it — today event blocks. See README → "History search".
@@ -17,9 +25,10 @@
 - `QueryBuilder::evaluatePhpWhere()`, `QueryBuilder::eventHistoryModel()`.
 
 ### Changed — behaviour that changes results (with and without `eventHistory`)
-- An empty event block (no condition inside) means "the client has data of the event" in MongoDB and PHP. Before,
-  the block was dropped: every client passed, and a filter of only empty blocks selected everyone in MongoDB but
-  nobody in PHP. In PostgreSQL without `eventHistory` the block is still dropped.
+- An empty event block (no condition inside) without `eventHistory` means "the client has data of the event" in
+  MongoDB (a non-empty array or object) and PHP (a `<event>.*` key). Before, the block was dropped: every client
+  passed, and a filter of only empty blocks selected everyone in MongoDB but nobody in PHP. In PostgreSQL without
+  `eventHistory` the block is still dropped.
 
 ### Unchanged
 - The operator list (`toArray`) only gains the `history` key.

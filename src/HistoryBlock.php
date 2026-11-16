@@ -4,19 +4,22 @@ namespace mvbsoft\queryManager;
 
 use yii\db\Expression;
 use yii\db\Query as PostgresqlQuery;
+use yii\mongodb\Connection as MongodbConnection;
 use yii\mongodb\QueryBuilder as MongodbQueryBuilder;
 
 /**
  * Conditions over a history: a list of records kept under one key of the data.
  *
  * A history block means "there is a record where all conditions of the block match"; an empty block (no condition
- * inside) means "there is data under the key"; `matching: false` negates the block. The record is an object with the
+ * inside) means "there is at least one record"; `matching: false` negates the block. The record is an object with the
  * same fields in every backend:
  *
  * - MongoDB: the key is a field of the document holding an array of records (`$elemMatch`);
  * - PostgreSQL 16+: the key is a `jsonb` column holding the same array (`EXISTS` over its elements);
- * - PHP: `$data[<key>]` holds the list of records; without the key the block is checked on flat data of one record
- *   (`$data['<key>.<field>']`), as ordinary conditions.
+ * - PHP: only `$data[<key>]` holds the records, as a list of arrays. No key, `null` and `[]` are no records; any other
+ *   value is a QueryBuilderException naming the key: the caller builds the PHP data and must give it this format.
+ *
+ * Without a history (one set of values per key) only an empty block comes here, see presenceWhere().
  *
  * The class does not know what the history is: QueryBuilder::historyBlock() connects an element type to it (event
  * blocks: the key is the event name, records are arrivals of the event).
@@ -58,7 +61,8 @@ class HistoryBlock
      * prefix of the block columns (`<key>.<field>`).
      * @param array $elements The conditions of the block.
      * @param bool $history Whether the data is a history. Without it only an empty block is handled here: MongoDB and
-     * PHP check that there is data under the key, PostgreSQL skips the block.
+     * PHP check that there is data under the key (a non-empty array or object in MongoDB, a `<key>.*` key in PHP),
+     * PostgreSQL skips the block.
      * @param bool $matching False negates the block.
      */
     public function __construct(QueryBuilder $builder, string $key, array $elements, bool $history, bool $matching = true)
@@ -98,7 +102,7 @@ class HistoryBlock
      * @param array $data The data of the PHP check.
      * @return int|array|null 1/0 for PHP, a condition for MongoDB / PostgreSQL, null to skip the block.
      * @throws QueryBuilderException A column of the block has no `<key>.` prefix, the block contains another block,
-     * or the key can not be a PostgreSQL column.
+     * the key can not be a PostgreSQL column, or the PHP data of the history is not a list of records.
      */
     public function where(string $conditionsType, array $data)
     {
@@ -119,6 +123,7 @@ class HistoryBlock
      * @param string $conditionsType
      * @param array $data
      * @return int|array
+     * @throws QueryBuilderException
      */
     private function conditionsWhere(string $conditionsType, array $data)
     {
@@ -130,24 +135,20 @@ class HistoryBlock
             return $this->postgresqlRecordExists();
         }
 
-        if ($this->isPhpHistory($data)) {
-            return intval($this->phpHasRecord($data[$this->_key]));
-        }
+        // Before the data checks: an invalid block throws whatever the data is, like in MongoDB / PostgreSQL
+        $elements = $this->recordElements();
 
-        // Flat data of one record: the conditions read `<key>.<field>` keys, as ordinary conditions
-        $query = $this->_builder->generateConditions($this->_elements, QueryBuilder::CONDITIONS_TYPE_PHP, $data);
-
-        return intval($this->_builder->evaluatePhpWhere($query->where));
+        return intval($this->phpHasRecord($elements, $this->phpRecords($data)));
     }
 
     /**
-     * Empty block: "there is data under the key".
-     *
-     * Data is a non-empty list of records or a non-empty object (data stored without history).
+     * Empty block. With a history: "there is at least one record", a non-empty list. Without a history: "there is
+     * data under the key", a non-empty array or object in MongoDB, a `<key>.*` key in PHP; PostgreSQL skips the block.
      *
      * @param string $conditionsType
      * @param array $data
      * @return int|array|Expression|null
+     * @throws QueryBuilderException
      */
     private function presenceWhere(string $conditionsType, array $data)
     {
@@ -155,8 +156,14 @@ class HistoryBlock
 
         if ($conditionsType == QueryBuilder::CONDITIONS_TYPE_MONGODB) {
             // "<key>.0" exists only in a non-empty array
+            $nonEmptyList = ["$key.0" => ['$exists' => true]];
+
+            if ($this->_history) {
+                return $nonEmptyList;
+            }
+
             return ['$or' => [
-                ["$key.0" => ['$exists' => true]],
+                $nonEmptyList,
                 [$key => ['$type' => 'object', '$ne' => (object)[]]],
             ]];
         }
@@ -167,15 +174,16 @@ class HistoryBlock
                 return null;
             }
 
-            // ELSE false: a missing value (NULL) must stay false under NOT
+            // CASE, not AND: PostgreSQL does not promise to check jsonb_typeof() first, and jsonb_array_length() of a
+            // non-array is an error. ELSE false: a missing value (NULL) must stay false under NOT
             $column = $this->postgresqlColumn();
 
-            return new Expression("CASE jsonb_typeof($column) WHEN 'array' THEN jsonb_array_length($column) > 0"
-                . " WHEN 'object' THEN $column <> '{}'::jsonb ELSE false END");
+            return new Expression("CASE WHEN jsonb_typeof($column) = 'array' THEN jsonb_array_length($column) > 0"
+                . " ELSE false END");
         }
 
-        if ($this->isPhpHistory($data)) {
-            return intval(is_array($data[$key]) && !empty($data[$key]));
+        if ($this->_history) {
+            return intval(!empty($this->phpRecords($data)));
         }
 
         foreach (array_keys($data) as $dataKey) {
@@ -210,37 +218,43 @@ class HistoryBlock
     }
 
     /**
-     * Whether the PHP data holds the history (the key is present, whatever its value).
+     * The records of the PHP data: the list under the key. No key, `null` and `[]` are no records.
      *
      * @param array $data
-     * @return bool
+     * @return array
+     * @throws QueryBuilderException The value is not a list, or an element of the list is not an array.
      */
-    private function isPhpHistory(array $data): bool
+    private function phpRecords(array $data): array
     {
-        return $this->_history && array_key_exists($this->_key, $data);
-    }
+        $records = $data[$this->_key] ?? null;
 
-    /**
-     * Whether one of the records matches all conditions of the block. Reads the value like MongoDB `$elemMatch`:
-     * only a list is a list of records, and only an array element is a record.
-     *
-     * @param mixed $records
-     * @return bool
-     */
-    private function phpHasRecord($records): bool
-    {
-        // Before the data checks: an invalid block throws whatever the data is, like in MongoDB / PostgreSQL
-        $elements = $this->recordElements();
+        if (is_null($records)) {
+            return [];
+        }
 
         if (!is_array($records) || array_keys($records) !== array_keys(array_keys($records))) {
-            return false;
+            throw new QueryBuilderException("History \"$this->_key\" must be a list of records.");
         }
 
         foreach ($records as $record) {
             if (!is_array($record)) {
-                continue;
+                throw new QueryBuilderException("Every record of the history \"$this->_key\" must be an object.");
             }
+        }
 
+        return $records;
+    }
+
+    /**
+     * Whether one of the records matches all conditions of the block.
+     *
+     * @param array $elements The conditions on one record (recordElements()).
+     * @param array $records The records (phpRecords()).
+     * @return bool
+     */
+    private function phpHasRecord(array $elements, array $records): bool
+    {
+        foreach ($records as $record) {
             $query = $this->_builder->generateConditions($elements, QueryBuilder::CONDITIONS_TYPE_PHP, $record);
 
             if ($this->_builder->evaluatePhpWhere($query->where)) {
@@ -257,12 +271,15 @@ class HistoryBlock
      * QueryBuilder produces conditions in the Yii format (`['and', ...]`); `$elemMatch` needs MongoDB operators.
      *
      * @return array
+     * @throws QueryBuilderException
      */
     private function mongodbRecordCondition(): array
     {
         $query = $this->_builder->generateConditions($this->recordElements(), QueryBuilder::CONDITIONS_TYPE_MONGODB);
 
-        return (new MongodbQueryBuilder(null))->buildCondition($query->where);
+        // buildCondition() never uses the connection, and an unopened Connection connects to nothing:
+        // the object is here only because the constructor asks for one
+        return (new MongodbQueryBuilder(new MongodbConnection()))->buildCondition($query->where);
     }
 
     /**
@@ -272,6 +289,7 @@ class HistoryBlock
      * ordinary columns. A value of another JSON type than the operator expects is NULL (no value).
      *
      * @return array
+     * @throws QueryBuilderException
      */
     private function postgresqlRecordExists(): array
     {
