@@ -19,9 +19,10 @@
 - History search as a reusable part: `HistoryBlock` checks a block against a list of records kept under one key
   (MongoDB field, PostgreSQL `jsonb` column, PHP data key); `QueryBuilder::historyBlock()` connects element types to
   it — today event blocks. See README → "History search".
-- `OperatorAbstract::history()`: whether an operator works in a history search (`false` for `time_range_operator`
-  and `days_of_week_operator`); also returned by `toArray` as `history`, so a UI can hide such operators. Inside a
-  history search `validateConditions()` rejects them.
+- `OperatorAbstract::notUsedInEventHistory()`: the slugs of the operators that do not work inside an event block
+  (`time_range_operator` and `days_of_week_operator`). `OperatorAbstract::history()` is `false` for them; `toArray`
+  returns the flag as `not_used_in_event_history`, so a UI can hide such operators. Inside a history search
+  `validateConditions()` rejects them.
 - `QueryBuilder::evaluatePhpWhere()`, `QueryBuilder::eventHistoryModel()`.
 
 ### Changed — behaviour that changes results (with and without `eventHistory`)
@@ -31,7 +32,7 @@
   `eventHistory` the block is still dropped.
 
 ### Unchanged
-- The operator list (`toArray`) only gains the `history` key.
+- The operator list (`toArray`) only gains the `not_used_in_event_history` key.
 - Without `eventHistory` everything else works exactly as before (operators, groups, client conditions, validation,
   `filterConditions()`, PostgreSQL).
 - Blocks of type `nodes` and everything inside them are never affected, also with `eventHistory`.

@@ -28,16 +28,6 @@ class TimeRangeOperator extends OperatorAbstract
     }
 
     /**
-     * Not inside a history block: the MongoDB condition is built on `$expr`, which `$elemMatch` forbids.
-     *
-     * @return bool
-     */
-    public static function history(): bool
-    {
-        return false;
-    }
-
-    /**
      * Checks if the time of day of the value (seconds since midnight, wall clock in the PHP default timezone)
      * is within [from, to]. If from > to the range wraps over midnight (e.g. 22:00 - 06:00). Any date matches,
      * not only today's.

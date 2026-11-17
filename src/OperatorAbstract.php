@@ -4,6 +4,8 @@ namespace mvbsoft\queryManager;
 
 use Carbon\Carbon;
 use MongoDB\BSON\UTCDateTime;
+use mvbsoft\queryManager\operators\DaysOfWeekOperator;
+use mvbsoft\queryManager\operators\TimeRangeOperator;
 use yii\base\BaseObject;
 use yii\db\Expression;
 
@@ -18,7 +20,7 @@ use yii\db\Expression;
  * @property-read string $slug - operator slug
  * @property-read string $group - operator group
  *
- * @property-read array $toArray - return "name" "description" "slug" "group" "history" as array with the same keys
+ * @property-read array $toArray - return "name" "description" "slug" "group" "not_used_in_event_history" as array with the same keys
  */
 abstract class OperatorAbstract extends BaseObject
 {
@@ -62,7 +64,19 @@ abstract class OperatorAbstract extends BaseObject
     abstract public static function description() : string;
 
     /**
-     * Whether the operator works inside a history block (a search over records, see HistoryBlock).
+     * Slugs of the operators that do not work inside an event block under `eventHistory`.
+     *
+     * MongoDB forbids `$expr` inside `$elemMatch`, which those operators need. A new such operator is added here.
+     *
+     * @return string[]
+     */
+    public static function notUsedInEventHistory(): array
+    {
+        return [TimeRangeOperator::slug(), DaysOfWeekOperator::slug()];
+    }
+
+    /**
+     * Whether the operator works inside a history block (a search over records, see HistoryBlock); reads notUsedInEventHistory().
      *
      * An operator that does not is rejected by QueryBuilder::validateConditions() inside a history block and matches
      * nothing there at run time.
@@ -71,7 +85,7 @@ abstract class OperatorAbstract extends BaseObject
      */
     public static function history(): bool
     {
-        return true;
+        return !in_array(static::slug(), self::notUsedInEventHistory(), true);
     }
 
     /**
@@ -125,7 +139,7 @@ abstract class OperatorAbstract extends BaseObject
             'group' => $this->group,
             'name' => $this->name,
             'description' => $this->description,
-            'history' => static::history(),
+            'not_used_in_event_history' => !static::history(),
         ];
     }
 
