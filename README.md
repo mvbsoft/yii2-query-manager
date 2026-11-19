@@ -30,7 +30,7 @@ The condition editor `ngx-lcg-condition-v2` (npm) builds the conditions this pac
 
 | yii2-query-manager | ngx-lcg-condition-v2 |
 |---|---|
-| 1.3.x (event history) | newer than 0.0.78 (the release with event history) |
+| 1.3.x (event history) | 0.0.79 and newer |
 | 1.2.x and older | 0.0.78 and older |
 
 

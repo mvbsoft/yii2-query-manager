@@ -2,7 +2,7 @@
 
 ## 1.3.0 - 2026-11-19
 
-Works with the condition editor `ngx-lcg-condition-v2` newer than 0.0.78 (the release with event history); see README →
+Works with the condition editor `ngx-lcg-condition-v2` 0.0.79 and newer; see README →
 "Compatibility".
 
 ### Added
