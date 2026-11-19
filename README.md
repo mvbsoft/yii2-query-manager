@@ -23,6 +23,16 @@ or add
 
 to the require section of your `composer.json` file.
 
+Compatibility
+-------------
+
+The condition editor `ngx-lcg-condition-v2` (npm) builds the conditions this package runs. Use the pair:
+
+| yii2-query-manager | ngx-lcg-condition-v2 |
+|---|---|
+| 1.3.x (event history) | newer than 0.0.78 (the release with event history) |
+| 1.2.x and older | 0.0.78 and older |
+
 
 Usage
 -----

@@ -1,6 +1,9 @@
 # Changelog
 
-## 1.3.0 (unreleased)
+## 1.3.0 - 2026-11-19
+
+Works with the condition editor `ngx-lcg-condition-v2` newer than 0.0.78 (the release with event history); see README →
+"Compatibility".
 
 ### Added
 - `QueryBuilder::$eventHistory` (off by default): an event holds a list of arrivals and an event block means "there is
